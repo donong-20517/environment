@@ -1,6 +1,4 @@
 import streamlit as st
-import pandas as pd
-import plotly.express as px
 
 # ============================================================
 # 환경 행동의 과학: 일상 속 행동이 환경에 미치는 영향을 배우는 앱
@@ -508,29 +506,15 @@ elif page == "나의 환경 기여도 시뮬레이터":
     m2.metric("예시 온실가스 감축량", f"{estimated_kg:.3f} kg CO₂e")
     m3.metric("적용한 계산 계수", sim_data["factor_label"])
 
-    chart_df = pd.DataFrame(
+    st.markdown("### 예시 감축량과 1 kg 비교")
+    st.caption("아래 막대는 입력한 실천량에 따른 예시 감축량을 1 kg CO₂e와 비교한 것입니다.")
+    st.bar_chart(
         {
-            "구분": ["예시 감축량", "비교 기준(1 kg)"],
-            "양(kg CO₂e)": [estimated_kg, 1.0],
-        }
+            "예시 감축량": [estimated_kg],
+            "비교 기준(1 kg)": [1.0],
+        },
+        horizontal=True,
     )
-    fig = px.bar(
-        chart_df,
-        x="구분",
-        y="양(kg CO₂e)",
-        color="구분",
-        color_discrete_sequence=["#55a879", "#c6dfcf"],
-        title="예시 감축량과 1 kg 비교",
-        text_auto=".3f",
-    )
-    fig.update_layout(
-        showlegend=False,
-        plot_bgcolor="white",
-        paper_bgcolor="white",
-        yaxis_title="온실가스 배출량 환산값 (kg CO₂e)",
-        xaxis_title="",
-    )
-    st.plotly_chart(fig, use_container_width=True)
     st.markdown(f"**계산 방식:** {count} {sim_data['unit']} × {sim_data['factor']} kg CO₂e/{sim_data['unit']} = **{estimated_kg:.3f} kg CO₂e**")
     st.caption(f"가정: {sim_data['factor_label']}. 이 계수는 교육용 예시이며 공인된 제품별 측정값이 아닙니다.")
     with st.expander("계산 계수의 의미와 한계"):
