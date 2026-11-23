@@ -1,1 +1,1044 @@
-import os import re from datetime import datetime, timezone, timedelta import streamlit as st st.set_page_config( page_title="ECO-SCIENCE LAB | 환경 행동의 과학적 메커니즘", page_icon="🔬", layout="wide", initial_sidebar_state="collapsed", ) KST = timezone(timedelta(hours=9)) @st.cache_resource def get_supabase_client(): url = None key = None try: url = st.secrets.get("SUPABASE_URL") key = st.secrets.get("SUPABASE_KEY") except Exception: pass url = url or os.environ.get("SUPABASE_URL") key = key or os.environ.get("SUPABASE_KEY") if not url or not key: return None try: from supabase import create_client return create_client(url, key) except Exception: return None def load_board_posts(): client = get_supabase_client() if client is not None: try: res = ( client.table("eco_reflection_board") .select("*") .order("created_at", desc=True) .limit(150) .execute() ) return res.data or [], True except Exception as e: st.warning(f"외부 데이터베이스 조회 오류로 임시 세션 데이터를 표시합니다: {e}") return st.session_state.get("fallback_posts", []), False def save_board_post(student_id: str, student_name: str, reflection: str): now_kst = datetime.now(KST).strftime("%Y-%m-%d %H:%M") client = get_supabase_client() if client is not None: try: client.table("eco_reflection_board").insert( { "student_id": student_id, "student_name": student_name, "reflection": reflection, } ).execute() return True, "데이터베이스에 기록이 영구 저장되었습니다." except Exception as e: return False, f"데이터베이스 저장 실패 (테이블/권한 확인 필요): {e}" posts = st.session_state.setdefault("fallback_posts", []) posts.insert( 0, { "student_id": student_id, "student_name": student_name, "reflection": reflection, "created_at": now_kst, }, ) return True, "현재 세션에 게시글이 등록되었습니다." st.markdown( """ <style> @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css'); @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&display=swap'); html, body, [class*="css"] { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif; } .stApp { background-color: #f4f6f8; color: #111827; } .main .block-container { max-width: 1180px; padding-top: 1.8rem; padding-bottom: 4rem; } .lab-header { background: linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #064e3b 100%); border-radius: 20px; padding: 2.1rem 2.4rem; margin-bottom: 1.4rem; box-shadow: 0 12px 28px -10px rgba(15, 23, 42, 0.25); border: 1px solid rgba(255, 255, 255, 0.08); } .lab-kicker { font-family: 'JetBrains Mono', monospace; color: #34d399; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 0.5rem; } .lab-title { color: #f8fafc; font-size: 2.15rem; font-weight: 800; letter-spacing: -0.025em; margin: 0 0 0.55rem 0; line-height: 1.25; } .lab-subtitle { color: #cbd5e1; font-size: 0.98rem; line-height: 1.65; margin: 0; max-width: 820px; } .report-header-box { background: #ffffff; border: 1px solid #e2e8f0; border-left: 5px solid #059669; border-radius: 14px; padding: 1.25rem 1.5rem; margin: 0.8rem 0 1rem 0; box-shadow: 0 2px 8px rgba(15, 23, 42, 0.03); } .badge-pill { display: inline-block; background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; border-radius: 6px; padding: 0.2rem 0.6rem; font-size: 0.78rem; font-weight: 700; margin-bottom: 0.45rem; } .report-title { color: #0f172a; font-size: 1.35rem; font-weight: 800; margin: 0; letter-spacing: -0.02em; } .analysis-block { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 1.3rem 1.5rem; margin-bottom: 0.85rem; box-shadow: 0 1px 4px rgba(15, 23, 42, 0.02); } .analysis-label { font-size: 0.95rem; font-weight: 800; color: #0f172a; margin-bottom: 0.55rem; } .analysis-text { color: #334155; font-size: 0.95rem; line-height: 1.78; margin: 0; } .post-card { background: #ffffff; border: 1px solid #e2e8f0; border-left: 4px solid #0f172a; border-radius: 12px; padding: 1.15rem 1.4rem; margin-bottom: 0.8rem; box-shadow: 0 2px 6px rgba(15, 23, 42, 0.03); } .post-meta { color: #0f172a; font-weight: 700; font-size: 0.92rem; margin-bottom: 0.45rem; } .post-time { color: #64748b; font-weight: 500; font-size: 0.82rem; margin-left: 0.5rem; } .post-body { color: #334155; line-height: 1.7; font-size: 0.95rem; white-space: pre-wrap; } div.stButton > button { border-radius: 10px; font-weight: 600; padding-top: 0.55rem; padding-bottom: 0.55rem; transition: all 0.15s ease; } </style> """, unsafe_allow_html=True, ) ITEMS = { "무색 투명 페트병 (PET)": { "category": "플라스틱 재활용", "keywords": [ "투명 페트", "투명페트", "무색 페트", "생수병", "페트병", "pet병", "pet", "음료수병", "탄산음료병", "라벨 제거", "라벨 떼", "압착" ], "disposal": "내용물을 비우고 물로 가볍게 헹군 뒤, 접착제나 비닐 라벨을 완전히 제거합니다. 부피를 줄이기 위해 압착한 후 뚜껑을 닫아 투명 페트병 전용 수거함에 배출합니다.", "science": ( "무색 페트병은 테레프탈산(TPA)과 에틸렌글리콜(EG)의 축합 중합으로 합성된 열가소성 폴리에스터인 " "폴리에틸렌 테레프탈레이트(PET)로 구성됩니다. PET는 결정화 속도와 용융 점도가 균일하여 가열 시 용융 방사(Melt Spinning)를 통해 " "장섬유(폴리에스터 원사)나 식품용 재생 펠릿(r-PET)으로 재가공할 수 있습니다. 반면 뚜껑(HDPE·PP)이나 PVC·접착식 라벨이 혼입되면 " "용융 온도($T_m$) 차이와 열분해로 인한 염산($\\text{HCl}$) 발생·변색이 일어나 고분자 사슬의 고유 점도(IV)가 급격히 저하됩니다." ), "environment": ( "고순도 투명 PET 회수는 원유 정제 및 나프타 분해(NCC)를 거쳐 신규 수지(Virgin PET)를 합성하는 화석연료 기반 공정을 대체합니다. " "국내 환경부 전과정평가(LCA) 및 한국환경공단 자료 기준으로, 재생 PET 원료 활용은 신재 생산 대비 온실가스 배출과 에너지 투입량을 유의미하게 저감하며, " "소각 시 발생하는 이산화탄소 및 불완전 연소 부산물, 매립지 내 장기 잔류 미세플라스틱 부하를 구조적으로 감소시킵니다." ), "personal": ( "분리배출 정확도를 높이면 고부가가치 재생 섬유·식품 용기 시장을 뒷받침해 장기적으로 생활 소비재의 원자재 가격 변동성과 폐기물 처리 비용 전가를 완화합니다. " "또한 가정 내 액체 잔류물과 당분으로 인한 미생물 번식 및 악취를 차단하여 실내 위생 환경을 개선하고, 고분자 재질 식별 역량을 길러 합리적 소비를 가능하게 합니다." ), "caution": "투명하게 보이는 일회용 테이크아웃 컵이나 샐러드 용기는 PS(폴리스티렌)나 PP 재질인 경우가 많으므로, 반드시 '페트(PET)' 마크를 확인한 뒤 구분 배출해야 합니다.", }, "유색 페트병 (유색 PET)": { "category": "플라스틱 재활용", "keywords": ["유색 페트", "색 페트", "갈색 페트", "초록 페트", "맥주 페트", "유색pet"], "disposal": "내용물을 비우고 라벨을 제거한 뒤, 투명 페트병 전용 수거함이 아닌 일반 플라스틱류 수거함으로 분리 배출합니다.", "science": ( "유색 페트병 역시 주사슬은 PET 고분자이지만, 자외선 차단을 위해 산화철계 안료나 유기 염료, 또는 나일론(PA) 차단층이 공압출된 다층 구조를 띠는 경우가 많습니다. " "용융 재가공 과정에서 색소는 화학적으로 분리되지 않아 재생 펠릿의 명도와 투명도를 떨어뜨리며, 이종 고분자 층은 상용성이 낮아 재생 수지의 기계적 인장 강도를 저하시킵니다." ), "environment": ( "유색 PET를 무색 PET와 엄격히 분리하면 투명 PET 재활용 공정의 원료 오염률(불순물 혼입률)을 낮추어 전체 플라스틱 물질 재활용률(Material Recycling Rate)을 향상시킵니다. " "분리된 유색 PET는 건축 자재용 시트나 부직포 등 색상이 허용되는 산업용 다운사이클링 원료로 전환되어 소각·매립량을 줄입니다." ), "personal": ( "외관상 유사해 보이는 동일 계열 플라스틱이라도 첨가제와 다층 구조에 따라 화학적 재가공 경로가 달라진다는 점을 이해함으로써, " "생활 속 폐기물 분류 오류를 줄이고 지역 수거 체계의 효율성을 높이는 데 기여합니다." ), "caution": "유색 페트병을 투명 페트병 전용 수거함에 혼합 배출하면 선별장 전체 배치의 재생 원료 등급이 하락하므로 반드시 일반 플라스틱으로 배출합니다.", }, "플라스틱 용기류 (HDPE · PP · PS)": { "category": "플라스틱 재활용", "keywords": [ "플라스틱", "플라스틱 용기", "샴푸통", "세제통", "요구르트병", "반찬통", "배달 용기", "배달용기", "플라스틱 트레이", "트레이", "pp", "pe", "hdpe", "ps" ], "disposal": "내용물과 기름기를 세척하여 제거하고, 금속 스프링이 든 펌프·다른 재질의 뚜껑·스티커를 분리한 뒤 재질 표시를 확인해 플라스틱류로 배출합니다.", "science": ( "생활 용기는 주로 고밀도 폴리에틸렌(HDPE), 폴리프로필렌(PP), 폴리스티렌(PS)으로 제조됩니다. 이들 고분자는 단위체 구조와 결정화도가 달라 밀도(PP 약 $0.90\\,\\text{g/cm}^3$, " "HDPE 약 $0.95\\,\\text{g/cm}^3$, PS 약 $1.05\\,\\text{g/cm}^3$)와 용융 온도가 서로 다릅니다. 선별 공정에서는 비중 분리(물 부유 선별)나 근적외선(NIR) 분광 분석으로 재질을 분류하는데, " "표면의 유지분이나 복합 재질은 적외선 흡수 스펙트럼을 왜곡해 선별 오차를 유발합니다." ), "environment": ( "재질별로 정밀 선별된 단일 폴리올레핀(PE·PP)은 펠릿화 공정을 거쳐 팔레트, 파이프, 생활용품 원료로 순환됩니다. " "이는 석유화학 산업의 나프타 소비를 줄이고, 매립 시 수백 년간 분해되지 않는 난분해성 고분자의 토양·해양 생태계 축적을 억제합니다." ), "personal": ( "세척이 불가능할 정도로 기름·양념이 착색된 용기는 재활용이 불가하므로, 배출 전 세척 여부를 판단하는 습관은 불필요한 수자원 낭비를 막고 " "다회용 용기 사용을 유도해 식생활 속 미세플라스틱 노출 가능성을 낮추는 행동 변화로 이어집니다." ), "caution": "펌프 내부의 금속 스프링, 실리콘 패킹, 칫솔·문구류 등 복합 재질 제품은 재활용 선별기 파손과 원료 오염을 일으키므로 종량제 봉투로 배출합니다.", }, "비닐류 및 발포 폴리스티렌 (필름 · EPS)": { "category": "비닐·발포수지 재활용", "keywords": [ "비닐", "과자 봉지", "과자봉지", "비닐 포장", "비닐봉지", "라면봉지", "뽁뽁이", "에어캡", "스티로폼", "발포", "완충재", "택배 완충", "eps", "아이스팩" ], "disposal": "이물질과 물기를 제거한 비닐은 흩날리지 않게 투명·반투명 봉투에 모아 비닐류로 배출합니다. 스티로폼(EPS)은 테이프와 송장을 떼어내고 흰색 깨끗한 상태로 배출합니다.", "science": ( "포장용 필름은 저밀도 폴리에틸렌(LDPE) 또는 선형 저밀도 폴리에틸렌(LLDPE)의 연신 필름이며, 스티로폼은 폴리스티렌(PS) 수지에 발포제를 주입해 부피의 약 98%를 공기로 채운 " "발포 폴리스티렌(EPS)입니다. 단일 재질 비닐은 열가소성 용융 압출을 통해 재생 수지나 고형연료(SRF)로 전환되며, EPS는 감용기에서 열·용매로 기포를 제거해 잉곳(Ingot) 형태로 부피를 1/40 이하로 줄여 재가공합니다." ), "environment": ( "경량 필름과 발포 수지는 부피 대비 질량이 매우 작아 수거 효율이 낮으면 바람에 비산되어 하천과 해양으로 유입되기 쉽습니다. " "자외선에 의한 광산화 분해로 파편화된 미세플라스틱은 먹이사슬을 통해 생물 농축을 일으키므로, 올바른 회수는 육상·해양 미세플라스틱 발생원을 원천 차단하는 효과가 있습니다." ), "personal": ( "택배 완충재와 과자 봉지를 정리·압축해 배출하면 가정 내 쓰레기 부피를 대폭 줄여 종량제 봉투 구매 비용을 절감할 수 있습니다. " "또한 과대포장 제품을 식별하는 소비 기준이 형성되어 불필요한 포장 폐기물 관리를 줄여 줍니다." ), "caution": "식탁보, 랩(PVC), 은박 비닐, 음식물이 묻은 비닐 및 유색·코팅 스티로폼은 재활용 공정을 저해하므로 일반 쓰레기로 배출해야 합니다.", }, "일반 종이류 · 골판지 상자": { "category": "종이 재활용", "keywords": [ "종이", "신문", "책", "책자", "노트", "공책", "폐지", "전단지", "골판지", "택배 상자", "택배박스", "박스", "상자", "종이상자" ], "disposal": "비닐 코팅 표지, 스프링, 테이프, 택배 송장, 스테이플러 심 등 이물질을 모두 제거한 뒤 물에 젖지 않도록 반듯하게 펴서 묶어 배출합니다.", "science": ( "종이는 식물 세포벽에서 추출한 셀룰로오스($(\\text{C}_6\\text{H}_{10}\\text{O}_5)_n$) 섬유가 수분 건조 과정에서 수산기($-\\text{OH}$) 간 수소 결합을 형성하며 얽힌 망상 구조입니다. " "제지 공장의 해리(Pulping) 공정에서는 폐지를 물에 풀어 수소 결합을 일시적으로 끊어 섬유를 분산시킨 뒤, 부유 선별(탈묵)과 스크린 여과를 거쳐 재생 펄프를 만듭니다. " "그러나 폴리프로필렌 테이프나 감열지(영수증)의 화학 코팅제는 펄프 슬러리 내에서 점착물(Stickies)을 형성해 초지기 롤러를 오염시킵니다." ), "environment": ( "폐지 1톤을 재활용하면 원목에서 버진 펄프를 생산할 때보다 산림 벌채를 줄이고, 펄프 증해(Cooking) 및 표백 공정에 소요되는 용수와 전력·화석연료 에너지를 크게 절감할 수 있습니다. " "단, 재활용을 거듭할수록 셀룰로오스 섬유의 평균 길이가 짧아지고 각질화(Hornification)가 진행되어 결합력이 약해지므로 약 5~7회 순환 후에는 신재 펄프 보충이 필요합니다." ), "personal": ( "택배 상자의 테이프와 송장을 제거하는 과정에서 송장에 기재된 이름·전화번호·주소 등 개인정보 유출 위험을 사전에 차단할 수 있습니다. " "또한 종이를 펼쳐 적재하면 실내 수납 공간을 효율적으로 활용하고 쾌적한 학습 환경을 유지할 수 있습니다." ), "caution": "영수증(감열지), 코팅된 광고지, 기름이 밴 치킨 박스, 화장지, 부직포는 일반 종이류와 혼합 배출하면 안 됩니다.", }, "종이팩 (살균팩 · 멸균팩)": { "category": "종이 재활용", "keywords": ["종이팩", "우유팩", "멸균팩", "살균팩", "두유팩", "주스팩"], "disposal": "내용물을 비우고 물로 깨끗이 헹군 뒤, 가위로 펼치거나 압착해 건조한 후 일반 폐지와 분리하여 종이팩 전용 수거함이나 주민센터에 배출합니다.", "science": ( "우유팩(살균팩)은 천연 침엽수 버진 펄프 양면에 저밀도 폴리에틸렌(LDPE) 방수 필름을 라미네이팅한 3층 구조이며, 멸균팩은 산소와 빛을 차단하기 위해 알루미늄 호일층을 추가한 6층 복합 구조입니다. " "일반 폐지 해리조에서는 폴리에틸렌 피막 때문에 종이팩이 제때 풀리지 않고 잔재물로 버려지지만, 전용 해리 설비에서는 고온·고전단 교반으로 펄프와 PE·알루미늄을 분리 회수할 수 있습니다." ), "environment": ( "종이팩에 사용된 펄프는 섬유 길이가 길고 표백도가 높은 최고급 천연 펄프이므로, 별도 회수 시 미용 티슈나 고급 화장지 원료로 고부가가치 재활용됩니다. " "일반 종이류와 섞여 소각·매립되는 비율을 줄이면 수입 펄프 의존도를 낮추고 탄소 흡수원인 산림 자원을 보전하는 효과가 큽니다." ), "personal": ( "음료 잔여물을 즉시 세척하고 건조하면 단백질·유지방 부패로 인한 악취와 세균 번식을 막을 수 있습니다. " "또한 여러 지자체와 주민센터에서 시행 중인 종이팩-화장지·종량제봉투 교환 제도를 활용하면 실질적인 생활 경제적 혜택도 얻을 수 있습니다." ), "caution": "살균팩(흰색 내부)과 멸균팩(은박 내부)은 재활용 공정이 다르므로 전용 수거함 안내에 따라 구분 배출하는 것이 가장 이상적입니다.", }, "유리병류": { "category": "유리·금속 재활용", "keywords": ["유리병", "유리", "유리 용기", "잼 병", "음료 유리", "소주병", "맥주병"], "disposal": "내용물을 비우고 물로 헹군 뒤 금속·플라스틱 뚜껑을 제거하여 색상별(투명·갈색·녹색) 구분 기준에 맞게 유리병 수거함에 배출합니다.", "science": ( "포장용 유리는 이산화규소($\\text{SiO}_2$)를 주성분으로 탄산나트륨($\\text{Na}_2\\text{CO}_3$)과 탄산칼슘($\\text{CaCO}_3$)을 혼합해 $1,500^\\circ\\text{C}$ 이상에서 용융시킨 비결정질 규산염 고체(소다석회유리)입니다. " "유리는 화학적 결합 구조가 안정적이어서 파유리(Cullet) 형태로 분쇄해 재용융해도 물성 열화 없이 무한 반복 재활용이 가능합니다. " "특히 파유리를 원료에 혼합하면 규사 원료를 처음 녹일 때보다 용융 온도를 낮출 수 있어 용해로 연료 소비가 줄어듭니다." ), "environment": ( "파유리 사용 비율을 10% 높일 때마다 유리 용해로의 에너지 소비는 약 2~3% 감소하고, 탄산염 원료의 열분해 과정에서 발생하는 공정 $\\text{CO}_2$ 배출량도 줄어듭니다. " "또한 규사·석회석 채굴로 인한 지형 훼손을 줄이며, 빈용기보증금 대상 병은 세척 후 재사용(Reuse)되어 재활용보다 훨씬 높은 에너지 절감 효과를 냅니다." ), "personal": ( "빈용기보증금 대상 음료·주류 병을 소매점에 반환하면 병당 보증금을 현금으로 환급받을 수 있어 즉각적인 경제적 이득을 얻을 수 있습니다. " "또한 유리 용기는 산성·고온 식품 보관 시 환경호르몬이나 미세플라스틱 용출 우려가 없어 안전한 식생활 관리에 유리합니다." ), "caution": "내열유리(전자레인지용), 도자기, 거울, 전구, 깨진 유리는 용융 온도와 성분이 달라 용해로 불량을 일으키므로 불연성 쓰레기(특수규격마대)로 배출해야 합니다.", }, "철캔 · 알루미늄캔": { "category": "유리·금속 재활용", "keywords": ["캔", "알루미늄", "철캔", "통조림", "음료 캔", "맥주캔", "부탄가스", "스프레이"], "disposal": "내용물을 비우고 헹군 뒤 발로 밟아 부피를 줄여 배출합니다. 부탄가스·살충제 등 압력 용기는 화기가 없는 실외에서 잔여 가스를 완전히 제거한 뒤 배출합니다.", "science": ( "금속 원자들은 자유 전자 바다를 공유하는 금속 결합을 이루므로 용융·주조를 거쳐도 결정 구조와 기계적 강도가 그대로 복원됩니다. " "선별장에서는 강자성체인 철(Fe) 캔을 자력 선별기로 먼저 분리하고, 비자성체인 알루미늄(Al) 캔은 와전류 선별기(Eddy Current Separator)에서 교번 자기장에 의해 유도된 반발력으로 분리합니다. " "특히 보크사이트 원광석에서 알루미늄을 제련하려면 융해염 전기분해(홀-에루 공정)에 막대한 전력이 들지만, 폐알루미늄 재용해는 그 에너지의 약 5%만으로 가능합니다." ), "environment": ( "알루미늄 캔 재활용은 원광석 채굴·정련·전해 제련 전 과정을 생략함으로써 신재 생산 대비 온실가스 배출과 전력 소비를 약 90~95% 수준까지 획기적으로 감축합니다. " "철 캔 역시 고로 제선 공정의 철광석과 코크스(석탄) 투입량을 줄여 제철소의 탄소 배출 집약도를 낮추는 핵심 순환 자원입니다." ), "personal": ( "캔을 압착해 배출하면 수거함 적재 효율이 높아지고 가정 내 분리수거 공간이 절약됩니다. " "또한 압력 용기의 잔류 가스를 안전하게 배출하는 습관은 수거 차량 및 선별장 압축 공정에서 발생할 수 있는 폭발·화재 사고로부터 작업자와 지역사회의 안전을 지킵니다." ), "caution": "통조림 캔 내부의 플라스틱 뚜껑이나 이물질은 반드시 제거하고, 부탄가스 캔에 구멍을 뚫을 때는 잔류 가스에 의한 정전기 스파크 화재에 각별히 주의합니다.", }, "폐건전지 · 리튬이온 배터리": { "category": "전자·특수 품목 재활용", "keywords": ["건전지", "배터리", "전지", "보조배터리", "리튬", "충전지"], "disposal": "절대 일반 쓰레기나 재활용품과 섞지 말고, 단자 부위를 절연 테이프로 감싼 뒤 아파트·주민센터·학교의 폐건전지 전용 수거함에 배출합니다.", "science": ( "망간·알칼리 건전지는 아연($\\text{Zn}$)의 산화와 이산화망간($\\text{MnO}_2$)의 환원 반응을, 리튬이온 배터리는 양극(리튬 전이금속 산화물)과 음극(흑연) 사이의 리튬 이온($\\text{Li}^+$) 이동을 이용해 전기를 생성합니다. " "전용 재활용 시설에서는 파쇄·열처리 및 습식 제련(산 침출·용매 추출)을 통해 아연, 망간, 리튬, 코발트, 니켈 같은 유가금속을 고순도로 회수합니다." ), "environment": ( "폐전지를 일반 쓰레기와 함께 매립하면 외피 부식 후 중금속과 전해질이 침출수로 유출되어 토양과 지하수를 오염시킵니다. " "특히 리튬이온 배터리가 수거 차량이나 선별장에서 물리적 충격을 받으면 분리막 손상으로 내부 단락과 열폭주(Thermal Runaway) 화재가 발생하므로 전용 수거는 대형 환경·안전 재난을 예방합니다." ), "personal": ( "수명이 다하거나 부풀어 오른(스웰링 현상) 배터리를 가정 내에 방치하지 않고 안전하게 분리 배출하면 실내 화재 위험을 원천 차단할 수 있습니다. " "또한 희소금속의 국내 도시광산(Urban Mining) 회수율을 높여 배터리·전자기기 공급망 안정성에도 간접적으로 기여합니다." ), "caution": "배터리를 임의로 분해하거나 압착·가열하면 전해액 누출 및 폭발 위험이 매우 크므로 원형 그대로 전용 수거함에 넣어야 합니다.", }, "폐가전제품 · 전자폐기물 (E-Waste)": { "category": "전자·특수 품목 재활용", "keywords": ["폐가전", "전자제품", "컴퓨터", "휴대폰", "스마트폰", "가전", "노트북", "이어폰", "충전기"], "disposal": "대형 폐가전은 '폐가전제품 무상방문수거 서비스(1599-0903)'를 이용하고, 소형 가전은 지자체 소형가전 전용 수거함이나 대형마트·주민센터 수거함에 배출합니다.", "science": ( "전자제품 인쇄회로기판(PCB)과 부품에는 구리($\\text{Cu}$), 금($\\text{Au}$), 은($\\text{Ag}$), 팔라듐($\\text{Pd}$), 희토류 원소와 함께 엔지니어링 플라스틱, 납·브롬계 난연제 등이 복합적으로 집적되어 있습니다. " "전문 리사이클링 센터에서는 냉매(프레온·HFC계)를 먼저 진공 회수한 뒤 자동 파쇄, 비중·자력·정전 선별 및 제련 공정을 거쳐 금속과 고분자를 분리 추출합니다." ), "environment": ( "광산에서 금 1톤을 채굴하려면 수십만 톤의 암석을 파쇄하고 시안화물 등 독성 화학물질을 사용해야 하지만, 폐휴대폰 기판에서는 수십 배 높은 농도로 귀금속을 회수할 수 있습니다. " "또한 냉장고·에어컨의 냉매 가스가 대기 중으로 누출되는 것을 막아 이산화탄소보다 수백~수천 배 높은 지구온난화지수(GWP)를 가진 온실가스 배출을 차단합니다." ), "personal": ( "폐가전 무상방문수거 제도를 이용하면 대형 폐기물 스티커 수수료(수천~수만 원)를 절약할 수 있습니다. " "배출 전 스마트폰·PC의 저장장치를 초기화하고 물리적으로 정리함으로써 개인 데이터 및 금융 정보 유출을 예방할 수 있습니다." ), "caution": "개인정보가 담긴 저장 매체는 반드시 공장 초기화 또는 데이터 완전 삭제 후 배출해야 합니다.", }, "폐식용유": { "category": "전자·특수 품목 재활용", "keywords": ["폐식용유", "식용유", "튀김기름", "기름"], "disposal": "음식물 찌꺼기를 거름망으로 걸러낸 뒤 완전히 식혀서 페트병이나 밀폐 용기에 담아 아파트·주민센터의 폐식용유 전용 수거함에 배출합니다.", "science": ( "식물성 식용유는 글리세롤 1분자에 불포화·포화 지방산 3분자가 에스터 결합한 트라이글리세라이드(Triglyceride)입니다. " "수거된 폐식용유는 불순물 정제 후 메탄올과 촉매(수산화나트륨 등)를 이용한 전이에스터화(Transesterification) 반응을 거쳐 지방산 메틸 에스터(FAME), 즉 바이오디젤(Biodiesel)이나 바이오항공유(SAF) 원료로 전환됩니다." ), "environment": ( "폐식용유 1L를 하수구로 흘려보내면 물 표면에 유막을 형성해 대기 중 산소 용해를 차단하고, 생물학적 산소 요구량(BOD)을 급증시켜 수생태계 부영양화와 저산소증을 유발합니다. " "반면 바이오연료로 전환하면 경유·항공유 등 화석연료를 대체하여 생애주기 기준 온실가스 배출을 최대 70~80%까지 저감할 수 있습니다." ), "personal": ( "주방 싱크대 배수관에 기름을 버리지 않으면 냉각된 유지방이 배관 내벽에 고착되어 발생하는 배수구 막힘, 악취, 역류 현상을 방지해 수리 비용과 위생 문제를 예방할 수 있습니다." ), "caution": "뜨거운 기름을 플라스틱 용기에 바로 부으면 용기가 열변형되어 화상을 입을 수 있으므로 반드시 상온으로 식힌 뒤 옮겨 담습니다.", }, } PRACTICES = { "대기전력 차단 및 멀티탭 전원 관리": { "category": "에너지 절약", "keywords": [ "대기전력", "플러그", "콘센트", "전원 끄기", "전기 끄기", "멀티탭", "코드 뽑", "플러그 뽑", "불 끄기", "전등 끄기", "소등", "절전", "전기 절약" ], "science": ( "전자제품은 주 전원이 꺼져 있어도 내부 전원공급장치(SMPS)의 변압기 코일 여자 전류, 리모컨 적외선 수신 센서, 네트워크 대기 모듈 유지를 위해 미세 전류를 지속적으로 소비합니다. " "소비전력 $P(\\text{W})$인 기기가 시간 $t(\\text{h})$ 동안 소비하는 전력량은 $E = P \\times t\\,(\\text{Wh})$이며, 물리적 스위치가 달린 멀티탭으로 회로를 개방(Open Circuit)하면 전류 흐름을 차단해 대기전력을 $0\\,\\text{W}$로 만들 수 있습니다." ), "environment": ( "한국전력거래소 전력통계 기준 국내 발전믹스에서 석탄·LNG 등 화석연료 발전이 차지하는 비중을 고려할 때, 전력 소비량 $1\\,\\text{kWh}$ 감축은 약 $0.45\\sim 0.47\\,\\text{kgCO}_2\\text{eq}$의 온실가스 배출 저감으로 직결됩니다. " "특히 전력 수요가 급증하는 피크 시간대의 불필요한 부하 감소는 첨두부하 발전기(고탄소 발전원) 가동을 억제합니다." ), "personal": ( "한국에너지공단 실측 조사 기준 가정 내 소비전력의 약 6~11%가 대기전력으로 낭비되며, 셋톱박스·PC 주변기기·전자레인지 등의 대기전력을 차단하면 누진세 구간 진입을 완화해 월간 전기요금을 실질적으로 절감할 수 있습니다. " "또한 노후 어댑터의 상시 발열을 줄여 트래킹 현상으로 인한 전기 화재 위험도 낮춥니다." ), "tip": "셋톱박스·TV·데스크톱 본체·모니터처럼 대기전력이 큰 기기는 개별 스위치 멀티탭에 묶어 관리하고, 냉장고나 공유기처럼 상시 가동이 필요한 기기는 제외합니다.", }, "적정 냉난방 온도 유지 및 열손실 관리": { "category": "에너지 절약", "keywords": [ "에어컨", "난방", "냉방", "보일러", "온도", "히터", "선풍기", "커튼", "단열", "내복" ], "science": ( "열역학 제2법칙에 따라 열은 고온에서 저온으로 이동하며, 단위 시간당 전도·대류에 의한 열손실률은 실내외 온도 차($\\Delta T$)에 비례합니다($\\dot{Q} \\propto \\Delta T$). " "냉난방기(히트펌프)의 성능계수(COP) 역시 실내외 온도 차가 커질수록 급격히 저하되므로, 설정 온도를 $1^\\circ\\text{C}$ 완화할 때마다 압축기 일률과 연료 연소량이 비선형적으로 감소합니다." ), "environment": ( "건물 부문은 국가 전체 온실가스 배출량의 약 20~25%를 차지하며 그중 냉난방 비중이 가장 큽니다. " "여름철 실내 냉방 온도를 $26^\\circ\\text{C}$ 이상, 겨울철 난방 온도를 $20^\\circ\\text{C}$ 이하로 유지하면 발전소 석탄·가스 연소량과 도시가스($\\text{CH}_4$) 직접 연소에 따른 이산화탄소 및 질소산화물($\\text{NO}_x$) 배출을 크게 줄일 수 있습니다." ), "personal": ( "냉난방 설정 온도를 $1^\\circ\\text{C}$ 조정하면 냉난방 에너지를 약 7% 절약하여 계절별 냉난방비 부담을 낮출 수 있습니다. " "생리학적으로도 실내외 온도 차이를 $5^\\circ\\text{C}$ 이내로 유지하면 자율신경계 불균형으로 인한 냉방병·두통·호흡기 점막 건조증을 예방해 학습 집중력을 유지하는 데 유리합니다." ), "tip": "에어컨 가동 초기에는 강풍으로 빠르게 온도를 낮춘 뒤 적정 온도를 유지하고, 선풍기·서큘레이터로 실내 대류를 순환시키면 체감 온도를 약 $2^\\circ\\text{C}$ 더 낮출 수 있습니다.", }, "절수 습관 및 온수 사용 시간 단축": { "category": "자원 절약·재사용", "keywords": [ "샤워", "물 절약", "수도", "양치", "양치컵", "물 틀어놓", "절수", "빨래 모아서", "설거지통" ], "science": ( "상수도는 취수·응집·침전·여과·소독 정수 공정과 가압 펌프 송수를 거쳐 공급되며, 사용 후 하수처리장의 미생물 호기성 분해 공정을 거치므로 물 $1\\,\\text{m}^3$당 상당한 전기에너지가 투입됩니다. " "특히 온수를 사용할 때는 물의 큰 비열($c = 4.184\\,\\text{kJ/kg}\\cdot\\text{K}$) 때문에 수온을 $25^\\circ\\text{C}$ 상승시키는 데 막대한 열에너지($Q = mc\\Delta T$)가 추가로 소모됩니다." ), "environment": ( "샤워 시간을 5분 단축하면 약 40~60L의 상수도와 온수 가열용 도시가스·전력을 동시에 절약할 수 있습니다. " "이는 정수장 약품 사용량과 하수처리장의 폭기조 전력 소모를 줄이고, 가뭄 시 하천 유지유량을 확보하여 담수 생태계의 수질과 생물다양성을 보전하는 데 기여합니다." ), "personal": ( "상·하수도 요금과 가스·전기 온수 가열비를 동시에 절감할 수 있으며, 불필요한 장시간 온수 샤워를 줄이면 피부 장벽의 천연 지질막 손상과 건조증을 완화하는 피부 건강상의 이점도 얻을 수 있습니다." ), "tip": "양치컵 사용(1회당 약 5L 절약), 설거지통 활용, 절수형 샤워헤드 장착을 병행하면 생활의 불편 없이 물 사용량을 30% 이상 줄일 수 있습니다.", }, "식량 폐기물 및 잔반 최소화": { "category": "자원 절약·재사용", "keywords": [ "잔반", "음식물", "음식 남기", "먹을 만큼", "식량", "급식", "음식물 쓰레기", "유통기한" ], "science": ( "식량 생산은 질소·인 비료 제조(하버-보슈 공정), 관개 농업, 냉장 유통(콜드체인)을 거치는 에너지 집약적 시스템입니다. " "버려진 음식물 쓰레기가 매립지 등 혐기성 조건에서 메탄생성균에 의해 분해되면 이산화탄소보다 지구온난화지수(GWP, 100년 기준)가 약 28배 높은 메탄($\\text{CH}_4$)이 발생합니다." ), "environment": ( "유엔환경계획(UNEP)과 IPCC 보고서에 따르면 전 세계 온실가스 배출량의 약 8~10%가 생산되었으나 소비되지 못하고 폐기되는 식량에서 기인합니다. " "잔반을 줄이면 농경지 확장을 위한 산림 훼손, 비료 유출로 인한 하천 녹조 현상, 음폐수(음식물 폐수) 처리 부하를 근본적으로 줄일 수 있습니다." ), "personal": ( "적정 섭취량을 계획해 식사하면 과식으로 인한 대사 부담을 줄이고 식비와 음식물 종량제 배출 수수료를 절약할 수 있습니다. " "또한 가정 내 부패 음식물을 줄여 초파리·곰팡이 포자 발생을 억제하고 주방 위생을 청결하게 관리할 수 있습니다." ), "tip": "학교 급식이나 외식 시 처음부터 먹을 수 있는 양만 배식받고, 가정에서는 냉장고 식재료 목록을 관리해 선입선출(FIFO) 원칙으로 소비합니다.", }, "텀블러 · 다회용기 반복 사용": { "category": "자원 절약·재사용", "keywords": [ "텀블러", "다회용 컵", "개인 컵", "일회용 컵", "다회용기", "개인컵", "머그컵", "보온병", "빨대" ], "science": ( "전과정평가(LCA) 관점에서 스테인리스 스틸(SUS304)이나 폴리프로필렌 텀블러는 원광석 제련 및 성형 단계에서 일회용 종이컵(내부 PE 코팅)이나 PET 컵보다 초기 탄소발자국이 큽니다. " "그러나 1회 사용당 폐기물 발생량이 거의 0에 수렴하므로, 손익분기점(환경 부담 상쇄 시점, 재질에 따라 약 15~50회) 이상 반복 사용하면 누적 환경 부하가 일회용품보다 현저히 낮아집니다." ), "environment": ( "일회용 종이컵은 내부 폴리에틸렌(PE) 방수 코팅 때문에 일반 폐지와 섞이면 재활용률이 극히 낮고, 일회용 플라스틱 컵은 짧은 사용 시간(평균 30분 미만) 대비 수백 년간 폐기물로 남습니다. " "다회용 컵 정착은 펄프·플라스틱 원료 채굴과 소각장 다이옥신·온실가스 배출을 동시에 감축합니다." ), "personal": ( "국내 주요 커피 전문점과 프랜차이즈에서 시행하는 개인 컵 할인(잔당 300~500원) 및 탄소중립실천포인트 적립 혜택을 통해 음료 구매 비용을 직접 절약할 수 있습니다. " "또한 뜨거운 음료를 담을 때 일회용 컵 내부 플라스틱 코팅층에서 용출될 수 있는 미세플라스틱과 화학 첨가물 섭취를 예방합니다." ), "tip": "환경 보호 효과를 극대화하려면 새 텀블러를 여러 개 수집하기보다 이미 보유한 텀블러를 수백 회 이상 장기간 사용하고, 세척 시 적정량의 세제를 사용합니다.", }, "장바구니 · 다회용 에코백 활용": { "category": "자원 절약·재사용", "keywords": [ "장바구니", "에코백", "비닐봉지", "다회용 가방", "쇼핑백", "종이봉투", "비닐봉투" ], "science": ( "일회용 비닐봉투는 주로 고밀도 폴리에틸렌(HDPE) 필름으로 제작되며 제조 에너지는 낮지만 인장 강도가 약해 1~2회 사용 후 폐기됩니다. " "반면 재활용 폴리에스터(r-PET)나 부직포 다회용 장바구니는 내구성이 높아 수십~수백 회 반복 사용이 가능하므로 단위 운반 횟수당 자원 투입량과 폐기물 질량을 급격히 낮춥니다." ), "environment": ( "비닐봉투 사용 억제는 석유계 폴리올레핀 소비를 줄일 뿐 아니라, 매립·투기된 비닐이 토양 투수성을 저해하고 해양 생물(바다거북·바닷새 등)의 섭식 피해를 유발하는 생태계 교란을 방지합니다." ), "personal": ( "편의점·마트에서 유상 판매되는 일회용 봉투 구매 비용을 반복적으로 절약할 수 있고, 손잡이 내구성이 높은 장바구니를 사용하면 무거운 식료품 운반 시 봉투 파손으로 인한 불편을 줄일 수 있습니다." ), "tip": "유기농 면 에코백은 목화 재배 시 물과 비료 투입량이 많아 최소 100회 이상 사용해야 환경 이득이 발생하므로, 기존에 가진 가방을 오래 쓰는 것이 가장 과학적입니다.", }, "가까운 거리 도보 · 자전거 · 대중교통 이용": { "category": "친환경 이동", "keywords": [ "걷기", "도보", "자전거", "자동차 대신", "차 대신", "대중교통", "버스", "지하철", "따릉이", "걸어가", "걸어다니", "전기자전거" ], "science": ( "내연기관 승용차는 가솔린(옥탄 $\\text{C}_8\\text{H}_{18}$ 등 탄화수소 혼합물)의 연소 반응($2\\text{C}_8\\text{H}_{18} + 25\\text{O}_2 \\rightarrow 16\\text{CO}_2 + 18\\text{H}_2\\text{O}$)을 통해 화학에너지를 운동에너지로 전환하며, " "열역학적 카르노 효율 한계로 인해 연료 에너지의 약 70~75%가 폐열로 손실됩니다. 휘발유 1L 연소 시 약 $2.1\\sim 2.3\\,\\text{kg}$의 $\\text{CO}_2$가 배출되는 반면, 도보와 자전거는 화석연료 연소가 전혀 없는 무배출(Zero-Emission) 이동 수단입니다." ), "environment": ( "수송 부문은 국가 온실가스 배출의 약 14%를 차지하며, 특히 $2\\sim 3\\,\\text{km}$ 이내 단거리 주행에서는 엔진 예열 전 불완전 연소 비율이 높아 일산화탄소($\\text{CO}$), 탄화수소($\\text{HC}$), 질소산화물($\\text{NO}_x$) 및 타이어 마모 미세먼지($\\text{PM}_{2.5}$)가 집중 배출됩니다. " "단거리 차량 이용을 도보·자전거·대중교통으로 전환하면 도심 열섬 현상과 광화학 스모그 생성을 크게 억제합니다." ), "personal": ( "유류비·주차비·교통비를 직접 절감할 수 있으며, 하루 30분 이상의 유산소 신체 활동은 심폐 지구력 향상, 인슐린 감수성 개선, 세로토닌 분비 촉진을 통한 학업 스트레스 완화에 과학적으로 입증된 건강 효과를 제공합니다." ), "tip": "편도 2km 이내 거리는 도보, 5km 이내는 자전거·공공자전거를 우선 선택하고, 장거리 이동 시에는 승객 1인당 탄소 배출량이 승용차의 1/5 수준인 지하철·버스를 이용합니다.", }, "종이 양면 인쇄 · 이면지 활용 · 디지털 문서화": { "category": "자원 절약·재사용", "keywords": [ "양면 인쇄", "이면지", "종이 아끼", "종이 절약", "태블릿", "전자문서", "모아찍기", "프린트" ], "science": ( "백상지(복사용지)는 목재 칩에서 리그닌을 화학적으로 제거한 표백 화학 펄프로 제조되며, 펄프 1톤 생산에는 약 2~2.5톤의 목재와 대량의 염소계·산소계 표백제 및 건조용 증기 에너지가 소모됩니다. " "양면 인쇄 및 2쪽 모아찍기는 동일한 정보 전달량 대비 필요한 셀룰로오스 섬유의 질량을 50~75%까지 직접 감축합니다." ), "environment": ( "복사용지 1박스(2,500매, 약 12.5kg) 생산에는 약 $30\\,\\text{kgCO}_2\\text{eq}$ 이상의 온실가스와 수백 리터의 공업용수가 투입됩니다. " "출력량 자체를 줄이는 원천 감량(Reduce)은 재활용(Recycle)보다 에너지 소비와 폐수 발생을 훨씬 효과적으로 낮추며 원시림의 탄소 고정 능력을 보전합니다." ), "personal": ( "프린터 토너·잉크 카트리지와 복사용지 구매 비용을 절감할 수 있으며, 레이저 프린터 가동 시 정착기 가열 과정에서 발생할 수 있는 휘발성 유기화합물(VOCs) 및 초미세먼지 실내 노출도 줄여 학습 공간의 공기질을 보호합니다." ), "tip": "프린터 기본 설정을 '양면 인쇄'로 고정하고, 한쪽 면만 사용한 인쇄물은 개인정보 여부를 확인한 뒤 연습장·메모지로 재사용합니다.", }, "탄소발자국 적은 식단 및 로컬푸드 선택": { "category": "자원 절약·재사용", "keywords": [ "채식", "육류 줄이기", "로컬푸드", "제철 음식", "저탄소 식단", "푸드 마일리지", "고기 줄이기", "식단" ], "science": ( "생태계 에너지 피라미드에서 영양 단계가 한 단계 올라갈 때마다 에너지의 약 10%만 전달되고 나머지 90%는 호흡열 등으로 소실됩니다. " "따라서 곡물을 사료로 재배해 반추동물(소 등)을 사육하는 축산업은 동일 단백질 생산 대비 토지·수자원 투입량이 매우 크며, 반추위 내 장내 발효 과정에서 다량의 메탄($\\text{CH}_4$)이 방출됩니다. " "또한 로컬푸드는 수송 거리와 냉장 보관 기간을 줄여 푸드 마일리지(Food Mileage) 기반 수송 연료 연소를 최소화합니다." ), "environment": ( "전과정평가 기준 소고기 $1\\,\\text{kg}$ 생산에는 약 $60\\,\\text{kgCO}_2\\text{eq}$ 이상이 배출되는 반면, 두부·콩류·채소류는 $2\\sim 3\\,\\text{kgCO}_2\\text{eq}$ 수준에 불과합니다. " "주 1~2회 저탄소 식단 실천과 지역 제철 농산물 소비는 축산 분뇨로 인한 수질 부영양화와 장거리 해상·항공 물류 탄소 배출을 크게 저감합니다." ), "personal": ( "식이섬유와 항산화 파이토케미컬이 풍부한 식물성 식단 및 신선한 제철 로컬푸드 섭취는 포화지방 과잉 섭취를 줄여 심혈관 대사 건강을 개선하고, 장내 유익균(마이크로바이옴) 다양성을 높여 면역 기능과 컨디션 유지에 도움을 줍니다." ), "tip": "모든 식사를 바꿀 필요 없이 '주 1회 채식의 날'을 정하거나, 가공식품 대신 인근 지역에서 생산된 제철 식재료를 우선 선택하는 것만으로도 큰 탄소 감축 효과를 얻을 수 있습니다.", }, "중고 거래 · 의류 수선 · 패스트패션 지양": { "category": "자원 절약·재사용", "keywords": [ "중고", "당근", "나눔", "수선", "옷", "의류", "헌옷", "리폼", "물물교환", "패스트패션", "재사용" ], "science": ( "현대 의류 산업은 폴리에스터(PET 합성섬유)와 면화(천연 셀룰로오스)를 방적·제직·염색 가공해 생산하며, 특히 합성섬유 세탁 과정에서는 마찰로 인해 1회 세탁당 수십만 가닥의 미세플라스틱 섬유(Microfiber)가 하수로 방출됩니다. " "기존 제품의 수명을 연장해 재사용(Reuse)하는 것은 원면 재배·석유화학 방사·염색 폐수 처리 공정의 신규 투입을 100% 대체하는 가장 직접적인 자원 순환 방식입니다." ), "environment": ( "유엔무역개발회의(UNCTAD)에 따르면 패션·의류 산업은 전 세계 산업 폐수의 약 20%와 탄소 배출의 약 8~10%를 차지하며, 청바지 1벌 생산에 약 7,000L 이상의 물이 소모됩니다. " "중고 거래와 의류 수선·재사용은 소각·매립되는 의류 폐기물 산더미를 줄이고 염색 공정의 중금속·유기염료 수계 유입을 막습니다." ), "personal": ( "불필요한 충동구매를 줄여 의류·생활용품 지출 비용을 크게 절약할 수 있으며, 미사용 물품을 중고 거래로 순환시키면 주거 공간의 수납 효율을 높이고 합리적인 자원 가치 판단 능력을 기를 수 있습니다." ), "tip": "안 입는 의류는 깨끗이 세탁해 의류수거함이나 기부 단체에 전달하고, 합성섬유 세탁 시에는 세탁망을 사용하면 미세섬유 방출량을 줄일 수 있습니다.", }, } ACTIVITY_TREE = { "♻️ 재활용 (물질 순환)": { "desc": "고분자·금속·유리·셀룰로오스 등 소재의 물리·화학적 특성을 유지한 채 원료로 재가공하는 활동입니다.", "subcategories": { "🧴 플라스틱 재활용": { "kind": "item", "entries": [ "무색 투명 페트병 (PET)", "유색 페트병 (유색 PET)", "플라스틱 용기류 (HDPE · PP · PS)", ], }, "🛍️ 비닐·발포수지 재활용": { "kind": "item", "entries": [ "비닐류 및 발포 폴리스티렌 (필름 · EPS)", ], }, "📄 종이·종이팩 재활용": { "kind": "item", "entries": [ "일반 종이류 · 골판지 상자", "종이팩 (살균팩 · 멸균팩)", ], }, "🥫 유리·금속 재활용": { "kind": "item", "entries": [ "유리병류", "철캔 · 알루미늄캔", ], }, "🔋 전자·특수 품목 재활용": { "kind": "item", "entries": [ "폐건전지 · 리튬이온 배터리", "폐가전제품 · 전자폐기물 (E-Waste)", "폐식용유", ], }, }, }, "⚡ 에너지 절약": { "desc": "전기·열에너지의 불필요한 전환 손실과 열전달 부하를 줄여 화석연료 발전 및 연소를 감축하는 활동입니다.", "subcategories": { "🔌 전기·대기전력 관리": { "kind": "practice", "entries": ["대기전력 차단 및 멀티탭 전원 관리"], }, "🌡️ 냉난방·열역학 관리": { "kind": "practice", "entries": ["적정 냉난방 온도 유지 및 열손실 관리"], }, }, }, "💧 자원 절약·재사용": { "desc": "제품 전과정평가(LCA) 관점에서 신규 원료 채굴과 폐기물 발생을 원천 감량(Reduce)하고 수명을 연장(Reuse)하는 활동입니다.", "subcategories": { "🚰 수자원·식량·종이 감량": { "kind": "practice", "entries": [ "절수 습관 및 온수 사용 시간 단축", "식량 폐기물 및 잔반 최소화", "종이 양면 인쇄 · 이면지 활용 · 디지털 문서화", ], }, "🥤 다회용품 및 순환 소비": { "kind": "practice", "entries": [ "텀블러 · 다회용기 반복 사용", "장바구니 · 다회용 에코백 활용", "탄소발자국 적은 식단 및 로컬푸드 선택", "중고 거래 · 의류 수선 · 패스트패션 지양", ], }, }, }, "🚲 친환경 이동": { "desc": "탄화수소 연료의 내연기관 연소를 무배출(Zero-Emission) 또는 고효율 대중수송으로 대체하는 활동입니다.", "subcategories": { "🚶 무배출 · 대중교통 전환": { "kind": "practice", "entries": ["가까운 거리 도보 · 자전거 · 대중교통 이용"], }, }, }, } KEYWORD_INDEX = [] for item_name, item in ITEMS.items(): for kw in item["keywords"]: KEYWORD_INDEX.append((kw.lower(), "item", item_name)) for prac_name, prac in PRACTICES.items(): for kw in prac["keywords"]: KEYWORD_INDEX.append((kw.lower(), "practice", prac_name)) def analyze_user_action(user_text: str): raw = user_text.strip().lower() if not raw: return [] compact = re.sub(r"\s+", "", raw) scores = {} for kw, kind, name in KEYWORD_INDEX: kw_compact = re.sub(r"\s+", "", kw) if kw in raw or kw_compact in compact: weight = len(kw_compact) * 2 prev = scores.get((kind, name), 0) scores[(kind, name)] = prev + weight if not scores: return [] ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True) results = [] for (kind, name), _score in ranked[:2]: data = ITEMS[name] if kind == "item" else PRACTICES[name] results.append((kind, name, data)) return results def render_analysis_report(title: str, data: dict, item_mode: bool = False): st.markdown( f""" <div class="report-header-box"> <div class="badge-pill">{data['category']}</div> <h3 class="report-title">{title}</h3> </div> """, unsafe_allow_html=True, ) if item_mode: st.markdown( f""" <div class="analysis-block"> <div class="analysis-label">📌 표준 분리배출 프로토콜</div> <p class="analysis-text">{data['disposal']}</p> </div> """, unsafe_allow_html=True, ) st.markdown( f""" <div class="analysis-block"> <div class="analysis-label">🔬 과학적 원리</div> <p class="analysis-text">{data['science']}</p> </div> <div class="analysis-block"> <div class="analysis-label">🌍 환경 시스템에 미치는 영향</div> <p class="analysis-text">{data['environment']}</p> </div> <div class="analysis-block"> <div class="analysis-label">🧬 나에게 미치는 영향 (경제 · 보건 · 생활 시스템)</div> <p class="analysis-text">{data['personal']}</p> </div> """, unsafe_allow_html=True, ) if item_mode: st.warning(f"**배출 시 유의사항:** {data['caution']}") else: st.info(f"**실천 최적화 가이드:** {data['tip']}") st.markdown( """ <div class="lab-header"> <div class="lab-kicker">ECO-SCIENCE MECHANISM ARCHIVE</div> <h1 class="lab-title">일상 행동의 과학적 메커니즘</h1> <p class="lab-subtitle"> 분리배출과 에너지·자원 절약이 지구 환경 시스템과 개인의 삶에 미치는 영향을 과학적 원리로 정밀 분석합니다. </p> </div> """, unsafe_allow_html=True, ) MENU_OPTIONS = [ "1. 유형별 환경보호 활동 탐구", "2. 나의 실천 활동 과학적 분석", "3. 실천 소감 및 탐구 기록 게시판", ] if "active_section" not in st.session_state: st.session_state["active_section"] = MENU_OPTIONS[0] nav_cols = st.columns(3) for idx, option in enumerate(MENU_OPTIONS): is_active = st.session_state["active_section"] == option with nav_cols[idx]: if st.button( option, key=f"top_nav_{idx}", type="primary" if is_active else "secondary", use_container_width=True, ): st.session_state["active_section"] = option st.rerun() st.markdown("<div style='height: 0.6rem;'></div>", unsafe_allow_html=True) active = st.session_state["active_section"] if active == MENU_OPTIONS[0]: st.markdown("### 1. 유형별 환경보호 활동 탐구") st.caption("관심 있는 활동 영역 버튼을 차례대로 선택하면 해당 항목의 과학적 원리와 다층적 영향을 확인할 수 있습니다.") if "selected_main_cat" not in st.session_state: st.session_state["selected_main_cat"] = "♻️ 재활용 (물질 순환)" if "selected_sub_cat" not in st.session_state: st.session_state["selected_sub_cat"] = "🧴 플라스틱 재활용" if "selected_entry" not in st.session_state: st.session_state["selected_entry"] = "무색 투명 페트병 (PET)" main_cats = list(ACTIVITY_TREE.keys()) main_cols = st.columns(len(main_cats)) for idx, m_cat in enumerate(main_cats): is_sel = st.session_state["selected_main_cat"] == m_cat with main_cols[idx]: if st.button( m_cat, key=f"m_cat_{idx}", type="primary" if is_sel else "secondary", use_container_width=True, ): st.session_state["selected_main_cat"] = m_cat first_sub = list(ACTIVITY_TREE[m_cat]["subcategories"].keys())[0] st.session_state["selected_sub_cat"] = first_sub st.session_state["selected_entry"] = ACTIVITY_TREE[m_cat]["subcategories"][first_sub]["entries"][0] st.rerun() current_main = st.session_state["selected_main_cat"] main_info = ACTIVITY_TREE[current_main] st.info(f"**{current_main}** — {main_info['desc']}") subcats = list(main_info["subcategories"].keys()) st.markdown("**세부 분야 선택**") sub_cols = st.columns(len(subcats)) for idx, s_cat in enumerate(subcats): is_sub_sel = st.session_state["selected_sub_cat"] == s_cat with sub_cols[idx]: if st.button( s_cat, key=f"s_cat_{current_main}_{idx}", type="primary" if is_sub_sel else "secondary", use_container_width=True, ): st.session_state["selected_sub_cat"] = s_cat st.session_state["selected_entry"] = main_info["subcategories"][s_cat]["entries"][0] st.rerun() current_sub = st.session_state["selected_sub_cat"] if current_sub not in main_info["subcategories"]: current_sub = subcats[0] st.session_state["selected_sub_cat"] = current_sub sub_info = main_info["subcategories"][current_sub] entries = sub_info["entries"] st.markdown("**상세 항목 선택**") entry_cols = st.columns(min(len(entries), 4)) for idx, entry_name in enumerate(entries): is_ent_sel = st.session_state["selected_entry"] == entry_name with entry_cols[idx % len(entry_cols)]: if st.button( entry_name, key=f"ent_{current_sub}_{idx}", type="primary" if is_ent_sel else "secondary", use_container_width=True, ): st.session_state["selected_entry"] = entry_name st.rerun() current_entry = st.session_state["selected_entry"] if current_entry not in entries: current_entry = entries[0] st.session_state["selected_entry"] = current_entry if sub_info["kind"] == "item": render_analysis_report(current_entry, ITEMS[current_entry], item_mode=True) else: render_analysis_report(current_entry, PRACTICES[current_entry], item_mode=False) elif active == MENU_OPTIONS[1]: st.markdown("### 2. 나의 실천 활동 과학적 분석") st.write( "일상에서 실천한 환경보호 행동을 자유롭게 서술하면, 관련된 물질 순환·에너지 전환·전과정평가(LCA) 메커니즘을 자동으로 분석합니다." ) st.caption("예시 문장 클릭으로 바로 테스트해 보기:") ex_cols = st.columns(4) examples = [ "투명 페트병 라벨을 떼고 찌그러뜨려서 버렸다", "안 쓰는 멀티탭 전원을 끄고 양치컵을 사용했다", "가까운 학교까지 차 대신 걸어가고 텀블러를 썼다", "우유팩을 씻어 말리고 부탄가스 가스를 빼서 배출했다", ] for idx, ex_text in enumerate(examples): with ex_cols[idx]: if st.button(f"예시 {idx+1}", key=f"ex_btn_{idx}", use_container_width=True): st.session_state["action_input_value"] = ex_text st.session_state["my_action_text"] = ex_text st.session_state["my_action_results"] = analyze_user_action(ex_text) st.rerun() with st.form("my_action_form", clear_on_submit=False): user_action = st.text_input( "실천한 환경보호 활동 입력", value=st.session_state.get("action_input_value", ""), placeholder="예: 배달 용기의 기름기를 씻어 분리배출하고, 종이는 양면 인쇄 후 이면지로 활용했다.", ) submitted = st.form_submit_button("과학적 원리 및 영향 분석하기", type="primary", use_container_width=True) if submitted: st.session_state["action_input_value"] = user_action if not user_action.strip(): st.warning("분석할 환경보호 실천 내용을 입력해 주세요.") st.session_state["my_action_results"] = None else: st.session_state["my_action_text"] = user_action.strip() st.session_state["my_action_results"] = analyze_user_action(user_action) results = st.session_state.get("my_action_results") if results is not None: st.markdown("---") st.caption(f"입력된 활동: **{st.session_state.get('my_action_text', '')}**") if len(results) > 0: matched_names = ", ".join([r[1] for r in results]) st.success(f"분석 완료 — 연관 메커니즘 **{len(results)}건**을 도출했습니다: **{matched_names}**") for kind, name, data in results: render_analysis_report(name, data, item_mode=(kind == "item")) else: st.info( "입력한 문장에서 구체적인 품목이나 에너지·자원 활동을 식별하지 못했습니다. " "예: '페트병', '우유팩', '배달 용기', '캔', '건전지', '대기전력', '에어컨', '샤워', '잔반', '텀블러', '장바구니', '자전거', '양면 인쇄', '채식', '중고 거래' 등의 핵심 단어를 포함해 입력해 보세요." ) elif active == MENU_OPTIONS[2]: st.markdown("### 3. 실천 소감 및 탐구 기록 게시판") st.write( "직접 실천한 환경보호 활동과 과학적 원리를 탐구하며 느낀 점을 기록해 주세요. 작성된 게시글은 전체 이용자가 열람할 수 있습니다." ) with st.form("reflection_board_form", clear_on_submit=True): c1, c2 = st.columns(2) with c1: student_id = st.text_input("학번", placeholder="예: 20418") with c2: student_name = st.text_input("이름", placeholder="예: 이서연") reflection_text = st.text_area( "환경보호 활동 소감", placeholder="실천한 환경보호 활동과 그 과정에 담긴 과학적 원리를 통해 새롭게 알게 된 점을 작성하세요.", height=140, ) post_btn = st.form_submit_button("게시하기", type="primary", use_container_width=True) if post_btn: if not student_id.strip() or not student_name.strip() or not reflection_text.strip(): st.warning("학번, 이름, 환경보호 활동 소감을 모두 입력해야 게시할 수 있습니다.") else: ok, msg = save_board_post( student_id.strip(), student_name.strip(), reflection_text.strip(), ) if ok: st.success(msg) else: st.error(msg) st.divider() st.markdown("#### 전체 탐구·실천 소감 아카이브") posts, is_persistent = load_board_posts() if not is_persistent: st.caption( "※ 현재 외부 데이터베이스(Supabase) 환경변수가 연결되지 않아 세션 임시 저장소로 동작합니다. " "Streamlit Secrets에 SUPABASE_URL과 SUPABASE_KEY를 등록하면 서버 DB에 영구 저장됩니다." ) if not posts: st.info("아직 등록된 게시글이 없습니다. 첫 번째 탐구 소감을 남겨 보세요.") else: st.caption(f"총 {len(posts)}개의 게시글이 공유되어 있습니다.") for post in posts: sid = post.get("student_id", "") sname = post.get("student_name", "") body = post.get("reflection", "") created = str(post.get("created_at", ""))[:16].replace("T", " ") st.markdown( f""" <div class="post-card"> <div class="post-meta"> {sid} {sname} <span class="post-time">{created}</span> </div> <div class="post-body">{body}</div> </div> """, unsafe_allow_html=True, ) st.markdown("<div style='height: 1.5rem;'></div>", unsafe_allow_html=True) with st.expander("📚 참고 자료 및 데이터 출처 안내"): st.markdown( """ - **기후에너지환경부 · 한국환경공단**: 생활폐기물 분리배출 가이드라인 및 재질중심 분리배출표시 제도 (2025) - **한국에너지공단**: 대기전력저감 프로그램 및 건물·수송 부문 에너지 절약 통계 - **전과정평가(LCA) 기준**: ISO 14040/14044 전과정평가 표준 및 환경부 국가 LCI 데이터베이스 - **주의사항**: 실제 분리배출 세부 기준은 지자체 및 공동주택 수거 계약 방식에 따라 일부 상이할 수 있으므로 거주 지역의 최신 배출 안내를 병행 확인하시기 바랍니다. """ )
+import os
+import re
+from datetime import datetime, timezone, timedelta
+import streamlit as st
+
+st.set_page_config(
+    page_title="ECO-SCIENCE LAB | 환경 행동의 과학적 메커니즘",
+    page_icon="🔬",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
+
+KST = timezone(timedelta(hours=9))
+
+
+@st.cache_resource
+def get_supabase_client():
+    url = None
+    key = None
+    try:
+        url = st.secrets.get("SUPABASE_URL")
+        key = st.secrets.get("SUPABASE_KEY")
+    except Exception:
+        pass
+    url = url or os.environ.get("SUPABASE_URL")
+    key = key or os.environ.get("SUPABASE_KEY")
+
+    if not url or not key:
+        return None
+    try:
+        from supabase import create_client
+        return create_client(url, key)
+    except Exception:
+        return None
+
+
+def load_board_posts():
+    client = get_supabase_client()
+    if client is not None:
+        try:
+            res = (
+                client.table("eco_reflection_board")
+                .select("*")
+                .order("created_at", desc=True)
+                .limit(150)
+                .execute()
+            )
+            return res.data or [], True
+        except Exception as e:
+            st.warning(f"외부 데이터베이스 조회 오류로 임시 세션 데이터를 표시합니다: {e}")
+    return st.session_state.get("fallback_posts", []), False
+
+
+def save_board_post(student_id: str, student_name: str, reflection: str):
+    now_kst = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
+    client = get_supabase_client()
+    if client is not None:
+        try:
+            client.table("eco_reflection_board").insert(
+                {
+                    "student_id": student_id,
+                    "student_name": student_name,
+                    "reflection": reflection,
+                }
+            ).execute()
+            return True, "데이터베이스에 기록이 영구 저장되었습니다."
+        except Exception as e:
+            return False, f"데이터베이스 저장 실패 (테이블/권한 확인 필요): {e}"
+
+    posts = st.session_state.setdefault("fallback_posts", [])
+    posts.insert(
+        0,
+        {
+            "student_id": student_id,
+            "student_name": student_name,
+            "reflection": reflection,
+            "created_at": now_kst,
+        },
+    )
+    return True, "현재 세션에 게시글이 등록되었습니다."
+
+
+st.markdown(
+    """
+    <style>
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&display=swap');
+
+    html, body, [class*="css"] {
+        font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    .stApp {
+        background-color: #f4f6f8;
+        color: #111827;
+    }
+    .main .block-container {
+        max-width: 1180px;
+        padding-top: 1.8rem;
+        padding-bottom: 4rem;
+    }
+    .lab-header {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #064e3b 100%);
+        border-radius: 20px;
+        padding: 2.1rem 2.4rem;
+        margin-bottom: 1.4rem;
+        box-shadow: 0 12px 28px -10px rgba(15, 23, 42, 0.25);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .lab-kicker {
+        font-family: 'JetBrains Mono', monospace;
+        color: #34d399;
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        margin-bottom: 0.5rem;
+    }
+    .lab-title {
+        color: #f8fafc;
+        font-size: 2.15rem;
+        font-weight: 800;
+        letter-spacing: -0.025em;
+        margin: 0 0 0.55rem 0;
+        line-height: 1.25;
+    }
+    .lab-subtitle {
+        color: #cbd5e1;
+        font-size: 0.98rem;
+        line-height: 1.65;
+        margin: 0;
+        max-width: 820px;
+    }
+    .report-header-box {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-left: 5px solid #059669;
+        border-radius: 14px;
+        padding: 1.25rem 1.5rem;
+        margin: 0.8rem 0 1rem 0;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.03);
+    }
+    .badge-pill {
+        display: inline-block;
+        background: #ecfdf5;
+        color: #047857;
+        border: 1px solid #a7f3d0;
+        border-radius: 6px;
+        padding: 0.2rem 0.6rem;
+        font-size: 0.78rem;
+        font-weight: 700;
+        margin-bottom: 0.45rem;
+    }
+    .report-title {
+        color: #0f172a;
+        font-size: 1.35rem;
+        font-weight: 800;
+        margin: 0;
+        letter-spacing: -0.02em;
+    }
+    .analysis-block {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 14px;
+        padding: 1.3rem 1.5rem;
+        margin-bottom: 0.85rem;
+        box-shadow: 0 1px 4px rgba(15, 23, 42, 0.02);
+    }
+    .analysis-label {
+        font-size: 0.95rem;
+        font-weight: 800;
+        color: #0f172a;
+        margin-bottom: 0.55rem;
+    }
+    .analysis-text {
+        color: #334155;
+        font-size: 0.95rem;
+        line-height: 1.78;
+        margin: 0;
+    }
+    .post-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-left: 4px solid #0f172a;
+        border-radius: 12px;
+        padding: 1.15rem 1.4rem;
+        margin-bottom: 0.8rem;
+        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.03);
+    }
+    .post-meta {
+        color: #0f172a;
+        font-weight: 700;
+        font-size: 0.92rem;
+        margin-bottom: 0.45rem;
+    }
+    .post-time {
+        color: #64748b;
+        font-weight: 500;
+        font-size: 0.82rem;
+        margin-left: 0.5rem;
+    }
+    .post-body {
+        color: #334155;
+        line-height: 1.7;
+        font-size: 0.95rem;
+        white-space: pre-wrap;
+    }
+    div.stButton > button {
+        border-radius: 10px;
+        font-weight: 600;
+        padding-top: 0.55rem;
+        padding-bottom: 0.55rem;
+        transition: all 0.15s ease;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+ITEMS = {
+    "무색 투명 페트병 (PET)": {
+        "category": "플라스틱 재활용",
+        "keywords": [
+            "투명 페트", "투명페트", "무색 페트", "생수병", "페트병", "pet병", "pet",
+            "음료수병", "탄산음료병", "라벨 제거", "라벨 떼", "압착"
+        ],
+        "disposal": "내용물을 비우고 물로 가볍게 헹군 뒤, 접착제나 비닐 라벨을 완전히 제거합니다. 부피를 줄이기 위해 압착한 후 뚜껑을 닫아 투명 페트병 전용 수거함에 배출합니다.",
+        "science": (
+            "무색 페트병은 테레프탈산(TPA)과 에틸렌글리콜(EG)의 축합 중합으로 합성된 열가소성 폴리에스터인 "
+            "폴리에틸렌 테레프탈레이트(PET)로 구성됩니다. PET는 결정화 속도와 용융 점도가 균일하여 가열 시 용융 방사(Melt Spinning)를 통해 "
+            "장섬유(폴리에스터 원사)나 식품용 재생 펠릿(r-PET)으로 재가공할 수 있습니다. 반면 뚜껑(HDPE·PP)이나 PVC·접착식 라벨이 혼입되면 "
+            "용융 온도($T_m$) 차이와 열분해로 인한 염산($\\text{HCl}$) 발생·변색이 일어나 고분자 사슬의 고유 점도(IV)가 급격히 저하됩니다."
+        ),
+        "environment": (
+            "고순도 투명 PET 회수는 원유 정제 및 나프타 분해(NCC)를 거쳐 신규 수지(Virgin PET)를 합성하는 화석연료 기반 공정을 대체합니다. "
+            "국내 환경부 전과정평가(LCA) 및 한국환경공단 자료 기준으로, 재생 PET 원료 활용은 신재 생산 대비 온실가스 배출과 에너지 투입량을 유의미하게 저감하며, "
+            "소각 시 발생하는 이산화탄소 및 불완전 연소 부산물, 매립지 내 장기 잔류 미세플라스틱 부하를 구조적으로 감소시킵니다."
+        ),
+        "personal": (
+            "분리배출 정확도를 높이면 고부가가치 재생 섬유·식품 용기 시장을 뒷받침해 장기적으로 생활 소비재의 원자재 가격 변동성과 폐기물 처리 비용 전가를 완화합니다. "
+            "또한 가정 내 액체 잔류물과 당분으로 인한 미생물 번식 및 악취를 차단하여 실내 위생 환경을 개선하고, 고분자 재질 식별 역량을 길러 합리적 소비를 가능하게 합니다."
+        ),
+        "caution": "투명하게 보이는 일회용 테이크아웃 컵이나 샐러드 용기는 PS(폴리스티렌)나 PP 재질인 경우가 많으므로, 반드시 '페트(PET)' 마크를 확인한 뒤 구분 배출해야 합니다.",
+    },
+    "유색 페트병 (유색 PET)": {
+        "category": "플라스틱 재활용",
+        "keywords": ["유색 페트", "색 페트", "갈색 페트", "초록 페트", "맥주 페트", "유색pet"],
+        "disposal": "내용물을 비우고 라벨을 제거한 뒤, 투명 페트병 전용 수거함이 아닌 일반 플라스틱류 수거함으로 분리 배출합니다.",
+        "science": (
+            "유색 페트병 역시 주사슬은 PET 고분자이지만, 자외선 차단을 위해 산화철계 안료나 유기 염료, 또는 나일론(PA) 차단층이 공압출된 다층 구조를 띠는 경우가 많습니다. "
+            "용융 재가공 과정에서 색소는 화학적으로 분리되지 않아 재생 펠릿의 명도와 투명도를 떨어뜨리며, 이종 고분자 층은 상용성이 낮아 재생 수지의 기계적 인장 강도를 저하시킵니다."
+        ),
+        "environment": (
+            "유색 PET를 무색 PET와 엄격히 분리하면 투명 PET 재활용 공정의 원료 오염률(불순물 혼입률)을 낮추어 전체 플라스틱 물질 재활용률(Material Recycling Rate)을 향상시킵니다. "
+            "분리된 유색 PET는 건축 자재용 시트나 부직포 등 색상이 허용되는 산업용 다운사이클링 원료로 전환되어 소각·매립량을 줄입니다."
+        ),
+        "personal": (
+            "외관상 유사해 보이는 동일 계열 플라스틱이라도 첨가제와 다층 구조에 따라 화학적 재가공 경로가 달라진다는 점을 이해함으로써, "
+            "생활 속 폐기물 분류 오류를 줄이고 지역 수거 체계의 효율성을 높이는 데 기여합니다."
+        ),
+        "caution": "유색 페트병을 투명 페트병 전용 수거함에 혼합 배출하면 선별장 전체 배치의 재생 원료 등급이 하락하므로 반드시 일반 플라스틱으로 배출합니다.",
+    },
+    "플라스틱 용기류 (HDPE · PP · PS)": {
+        "category": "플라스틱 재활용",
+        "keywords": [
+            "플라스틱", "플라스틱 용기", "샴푸통", "세제통", "요구르트병", "반찬통",
+            "배달 용기", "배달용기", "플라스틱 트레이", "트레이", "pp", "pe", "hdpe", "ps"
+        ],
+        "disposal": "내용물과 기름기를 세척하여 제거하고, 금속 스프링이 든 펌프·다른 재질의 뚜껑·스티커를 분리한 뒤 재질 표시를 확인해 플라스틱류로 배출합니다.",
+        "science": (
+            "생활 용기는 주로 고밀도 폴리에틸렌(HDPE), 폴리프로필렌(PP), 폴리스티렌(PS)으로 제조됩니다. 이들 고분자는 단위체 구조와 결정화도가 달라 밀도(PP 약 $0.90\\,\\text{g/cm}^3$, "
+            "HDPE 약 $0.95\\,\\text{g/cm}^3$, PS 약 $1.05\\,\\text{g/cm}^3$)와 용융 온도가 서로 다릅니다. 선별 공정에서는 비중 분리(물 부유 선별)나 근적외선(NIR) 분광 분석으로 재질을 분류하는데, "
+            "표면의 유지분이나 복합 재질은 적외선 흡수 스펙트럼을 왜곡해 선별 오차를 유발합니다."
+        ),
+        "environment": (
+            "재질별로 정밀 선별된 단일 폴리올레핀(PE·PP)은 펠릿화 공정을 거쳐 팔레트, 파이프, 생활용품 원료로 순환됩니다. "
+            "이는 석유화학 산업의 나프타 소비를 줄이고, 매립 시 수백 년간 분해되지 않는 난분해성 고분자의 토양·해양 생태계 축적을 억제합니다."
+        ),
+        "personal": (
+            "세척이 불가능할 정도로 기름·양념이 착색된 용기는 재활용이 불가하므로, 배출 전 세척 여부를 판단하는 습관은 불필요한 수자원 낭비를 막고 "
+            "다회용 용기 사용을 유도해 식생활 속 미세플라스틱 노출 가능성을 낮추는 행동 변화로 이어집니다."
+        ),
+        "caution": "펌프 내부의 금속 스프링, 실리콘 패킹, 칫솔·문구류 등 복합 재질 제품은 재활용 선별기 파손과 원료 오염을 일으키므로 종량제 봉투로 배출합니다.",
+    },
+    "비닐류 및 발포 폴리스티렌 (필름 · EPS)": {
+        "category": "비닐·발포수지 재활용",
+        "keywords": [
+            "비닐", "과자 봉지", "과자봉지", "비닐 포장", "비닐봉지", "라면봉지", "뽁뽁이", "에어캡",
+            "스티로폼", "발포", "완충재", "택배 완충", "eps", "아이스팩"
+        ],
+        "disposal": "이물질과 물기를 제거한 비닐은 흩날리지 않게 투명·반투명 봉투에 모아 비닐류로 배출합니다. 스티로폼(EPS)은 테이프와 송장을 떼어내고 흰색 깨끗한 상태로 배출합니다.",
+        "science": (
+            "포장용 필름은 저밀도 폴리에틸렌(LDPE) 또는 선형 저밀도 폴리에틸렌(LLDPE)의 연신 필름이며, 스티로폼은 폴리스티렌(PS) 수지에 발포제를 주입해 부피의 약 98%를 공기로 채운 "
+            "발포 폴리스티렌(EPS)입니다. 단일 재질 비닐은 열가소성 용융 압출을 통해 재생 수지나 고형연료(SRF)로 전환되며, EPS는 감용기에서 열·용매로 기포를 제거해 잉곳(Ingot) 형태로 부피를 1/40 이하로 줄여 재가공합니다."
+        ),
+        "environment": (
+            "경량 필름과 발포 수지는 부피 대비 질량이 매우 작아 수거 효율이 낮으면 바람에 비산되어 하천과 해양으로 유입되기 쉽습니다. "
+            "자외선에 의한 광산화 분해로 파편화된 미세플라스틱은 먹이사슬을 통해 생물 농축을 일으키므로, 올바른 회수는 육상·해양 미세플라스틱 발생원을 원천 차단하는 효과가 있습니다."
+        ),
+        "personal": (
+            "택배 완충재와 과자 봉지를 정리·압축해 배출하면 가정 내 쓰레기 부피를 대폭 줄여 종량제 봉투 구매 비용을 절감할 수 있습니다. "
+            "또한 과대포장 제품을 식별하는 소비 기준이 형성되어 불필요한 포장 폐기물 관리를 줄여 줍니다."
+        ),
+        "caution": "식탁보, 랩(PVC), 은박 비닐, 음식물이 묻은 비닐 및 유색·코팅 스티로폼은 재활용 공정을 저해하므로 일반 쓰레기로 배출해야 합니다.",
+    },
+    "일반 종이류 · 골판지 상자": {
+        "category": "종이 재활용",
+        "keywords": [
+            "종이", "신문", "책", "책자", "노트", "공책", "폐지", "전단지",
+            "골판지", "택배 상자", "택배박스", "박스", "상자", "종이상자"
+        ],
+        "disposal": "비닐 코팅 표지, 스프링, 테이프, 택배 송장, 스테이플러 심 등 이물질을 모두 제거한 뒤 물에 젖지 않도록 반듯하게 펴서 묶어 배출합니다.",
+        "science": (
+            "종이는 식물 세포벽에서 추출한 셀룰로오스($(\\text{C}_6\\text{H}_{10}\\text{O}_5)_n$) 섬유가 수분 건조 과정에서 수산기($-\\text{OH}$) 간 수소 결합을 형성하며 얽힌 망상 구조입니다. "
+            "제지 공장의 해리(Pulping) 공정에서는 폐지를 물에 풀어 수소 결합을 일시적으로 끊어 섬유를 분산시킨 뒤, 부유 선별(탈묵)과 스크린 여과를 거쳐 재생 펄프를 만듭니다. "
+            "그러나 폴리프로필렌 테이프나 감열지(영수증)의 화학 코팅제는 펄프 슬러리 내에서 점착물(Stickies)을 형성해 초지기 롤러를 오염시킵니다."
+        ),
+        "environment": (
+            "폐지 1톤을 재활용하면 원목에서 버진 펄프를 생산할 때보다 산림 벌채를 줄이고, 펄프 증해(Cooking) 및 표백 공정에 소요되는 용수와 전력·화석연료 에너지를 크게 절감할 수 있습니다. "
+            "단, 재활용을 거듭할수록 셀룰로오스 섬유의 평균 길이가 짧아지고 각질화(Hornification)가 진행되어 결합력이 약해지므로 약 5~7회 순환 후에는 신재 펄프 보충이 필요합니다."
+        ),
+        "personal": (
+            "택배 상자의 테이프와 송장을 제거하는 과정에서 송장에 기재된 이름·전화번호·주소 등 개인정보 유출 위험을 사전에 차단할 수 있습니다. "
+            "또한 종이를 펼쳐 적재하면 실내 수납 공간을 효율적으로 활용하고 쾌적한 학습 환경을 유지할 수 있습니다."
+        ),
+        "caution": "영수증(감열지), 코팅된 광고지, 기름이 밴 치킨 박스, 화장지, 부직포는 일반 종이류와 혼합 배출하면 안 됩니다.",
+    },
+    "종이팩 (살균팩 · 멸균팩)": {
+        "category": "종이 재활용",
+        "keywords": ["종이팩", "우유팩", "멸균팩", "살균팩", "두유팩", "주스팩"],
+        "disposal": "내용물을 비우고 물로 깨끗이 헹군 뒤, 가위로 펼치거나 압착해 건조한 후 일반 폐지와 분리하여 종이팩 전용 수거함이나 주민센터에 배출합니다.",
+        "science": (
+            "우유팩(살균팩)은 천연 침엽수 버진 펄프 양면에 저밀도 폴리에틸렌(LDPE) 방수 필름을 라미네이팅한 3층 구조이며, 멸균팩은 산소와 빛을 차단하기 위해 알루미늄 호일층을 추가한 6층 복합 구조입니다. "
+            "일반 폐지 해리조에서는 폴리에틸렌 피막 때문에 종이팩이 제때 풀리지 않고 잔재물로 버려지지만, 전용 해리 설비에서는 고온·고전단 교반으로 펄프와 PE·알루미늄을 분리 회수할 수 있습니다."
+        ),
+        "environment": (
+            "종이팩에 사용된 펄프는 섬유 길이가 길고 표백도가 높은 최고급 천연 펄프이므로, 별도 회수 시 미용 티슈나 고급 화장지 원료로 고부가가치 재활용됩니다. "
+            "일반 종이류와 섞여 소각·매립되는 비율을 줄이면 수입 펄프 의존도를 낮추고 탄소 흡수원인 산림 자원을 보전하는 효과가 큽니다."
+        ),
+        "personal": (
+            "음료 잔여물을 즉시 세척하고 건조하면 단백질·유지방 부패로 인한 악취와 세균 번식을 막을 수 있습니다. "
+            "또한 여러 지자체와 주민센터에서 시행 중인 종이팩-화장지·종량제봉투 교환 제도를 활용하면 실질적인 생활 경제적 혜택도 얻을 수 있습니다."
+        ),
+        "caution": "살균팩(흰색 내부)과 멸균팩(은박 내부)은 재활용 공정이 다르므로 전용 수거함 안내에 따라 구분 배출하는 것이 가장 이상적입니다.",
+    },
+    "유리병류": {
+        "category": "유리·금속 재활용",
+        "keywords": ["유리병", "유리", "유리 용기", "잼 병", "음료 유리", "소주병", "맥주병"],
+        "disposal": "내용물을 비우고 물로 헹군 뒤 금속·플라스틱 뚜껑을 제거하여 색상별(투명·갈색·녹색) 구분 기준에 맞게 유리병 수거함에 배출합니다.",
+        "science": (
+            "포장용 유리는 이산화규소($\\text{SiO}_2$)를 주성분으로 탄산나트륨($\\text{Na}_2\\text{CO}_3$)과 탄산칼슘($\\text{CaCO}_3$)을 혼합해 $1,500^\\circ\\text{C}$ 이상에서 용융시킨 비결정질 규산염 고체(소다석회유리)입니다. "
+            "유리는 화학적 결합 구조가 안정적이어서 파유리(Cullet) 형태로 분쇄해 재용융해도 물성 열화 없이 무한 반복 재활용이 가능합니다. "
+            "특히 파유리를 원료에 혼합하면 규사 원료를 처음 녹일 때보다 용융 온도를 낮출 수 있어 용해로 연료 소비가 줄어듭니다."
+        ),
+        "environment": (
+            "파유리 사용 비율을 10% 높일 때마다 유리 용해로의 에너지 소비는 약 2~3% 감소하고, 탄산염 원료의 열분해 과정에서 발생하는 공정 $\\text{CO}_2$ 배출량도 줄어듭니다. "
+            "또한 규사·석회석 채굴로 인한 지형 훼손을 줄이며, 빈용기보증금 대상 병은 세척 후 재사용(Reuse)되어 재활용보다 훨씬 높은 에너지 절감 효과를 냅니다."
+        ),
+        "personal": (
+            "빈용기보증금 대상 음료·주류 병을 소매점에 반환하면 병당 보증금을 현금으로 환급받을 수 있어 즉각적인 경제적 이득을 얻을 수 있습니다. "
+            "또한 유리 용기는 산성·고온 식품 보관 시 환경호르몬이나 미세플라스틱 용출 우려가 없어 안전한 식생활 관리에 유리합니다."
+        ),
+        "caution": "내열유리(전자레인지용), 도자기, 거울, 전구, 깨진 유리는 용융 온도와 성분이 달라 용해로 불량을 일으키므로 불연성 쓰레기(특수규격마대)로 배출해야 합니다.",
+    },
+    "철캔 · 알루미늄캔": {
+        "category": "유리·금속 재활용",
+        "keywords": ["캔", "알루미늄", "철캔", "통조림", "음료 캔", "맥주캔", "부탄가스", "스프레이"],
+        "disposal": "내용물을 비우고 헹군 뒤 발로 밟아 부피를 줄여 배출합니다. 부탄가스·살충제 등 압력 용기는 화기가 없는 실외에서 잔여 가스를 완전히 제거한 뒤 배출합니다.",
+        "science": (
+            "금속 원자들은 자유 전자 바다를 공유하는 금속 결합을 이루므로 용융·주조를 거쳐도 결정 구조와 기계적 강도가 그대로 복원됩니다. "
+            "선별장에서는 강자성체인 철(Fe) 캔을 자력 선별기로 먼저 분리하고, 비자성체인 알루미늄(Al) 캔은 와전류 선별기(Eddy Current Separator)에서 교번 자기장에 의해 유도된 반발력으로 분리합니다. "
+            "특히 보크사이트 원광석에서 알루미늄을 제련하려면 융해염 전기분해(홀-에루 공정)에 막대한 전력이 들지만, 폐알루미늄 재용해는 그 에너지의 약 5%만으로 가능합니다."
+        ),
+        "environment": (
+            "알루미늄 캔 재활용은 원광석 채굴·정련·전해 제련 전 과정을 생략함으로써 신재 생산 대비 온실가스 배출과 전력 소비를 약 90~95% 수준까지 획기적으로 감축합니다. "
+            "철 캔 역시 고로 제선 공정의 철광석과 코크스(석탄) 투입량을 줄여 제철소의 탄소 배출 집약도를 낮추는 핵심 순환 자원입니다."
+        ),
+        "personal": (
+            "캔을 압착해 배출하면 수거함 적재 효율이 높아지고 가정 내 분리수거 공간이 절약됩니다. "
+            "또한 압력 용기의 잔류 가스를 안전하게 배출하는 습관은 수거 차량 및 선별장 압축 공정에서 발생할 수 있는 폭발·화재 사고로부터 작업자와 지역사회의 안전을 지킵니다."
+        ),
+        "caution": "통조림 캔 내부의 플라스틱 뚜껑이나 이물질은 반드시 제거하고, 부탄가스 캔에 구멍을 뚫을 때는 잔류 가스에 의한 정전기 스파크 화재에 각별히 주의합니다.",
+    },
+    "폐건전지 · 리튬이온 배터리": {
+        "category": "전자·특수 품목 재활용",
+        "keywords": ["건전지", "배터리", "전지", "보조배터리", "리튬", "충전지"],
+        "disposal": "절대 일반 쓰레기나 재활용품과 섞지 말고, 단자 부위를 절연 테이프로 감싼 뒤 아파트·주민센터·학교의 폐건전지 전용 수거함에 배출합니다.",
+        "science": (
+            "망간·알칼리 건전지는 아연($\\text{Zn}$)의 산화와 이산화망간($\\text{MnO}_2$)의 환원 반응을, 리튬이온 배터리는 양극(리튬 전이금속 산화물)과 음극(흑연) 사이의 리튬 이온($\\text{Li}^+$) 이동을 이용해 전기를 생성합니다. "
+            "전용 재활용 시설에서는 파쇄·열처리 및 습식 제련(산 침출·용매 추출)을 통해 아연, 망간, 리튬, 코발트, 니켈 같은 유가금속을 고순도로 회수합니다."
+        ),
+        "environment": (
+            "폐전지를 일반 쓰레기와 함께 매립하면 외피 부식 후 중금속과 전해질이 침출수로 유출되어 토양과 지하수를 오염시킵니다. "
+            "특히 리튬이온 배터리가 수거 차량이나 선별장에서 물리적 충격을 받으면 분리막 손상으로 내부 단락과 열폭주(Thermal Runaway) 화재가 발생하므로 전용 수거는 대형 환경·안전 재난을 예방합니다."
+        ),
+        "personal": (
+            "수명이 다하거나 부풀어 오른(스웰링 현상) 배터리를 가정 내에 방치하지 않고 안전하게 분리 배출하면 실내 화재 위험을 원천 차단할 수 있습니다. "
+            "또한 희소금속의 국내 도시광산(Urban Mining) 회수율을 높여 배터리·전자기기 공급망 안정성에도 간접적으로 기여합니다."
+        ),
+        "caution": "배터리를 임의로 분해하거나 압착·가열하면 전해액 누출 및 폭발 위험이 매우 크므로 원형 그대로 전용 수거함에 넣어야 합니다.",
+    },
+    "폐가전제품 · 전자폐기물 (E-Waste)": {
+        "category": "전자·특수 품목 재활용",
+        "keywords": ["폐가전", "전자제품", "컴퓨터", "휴대폰", "스마트폰", "가전", "노트북", "이어폰", "충전기"],
+        "disposal": "대형 폐가전은 '폐가전제품 무상방문수거 서비스(1599-0903)'를 이용하고, 소형 가전은 지자체 소형가전 전용 수거함이나 대형마트·주민센터 수거함에 배출합니다.",
+        "science": (
+            "전자제품 인쇄회로기판(PCB)과 부품에는 구리($\\text{Cu}$), 금($\\text{Au}$), 은($\\text{Ag}$), 팔라듐($\\text{Pd}$), 희토류 원소와 함께 엔지니어링 플라스틱, 납·브롬계 난연제 등이 복합적으로 집적되어 있습니다. "
+            "전문 리사이클링 센터에서는 냉매(프레온·HFC계)를 먼저 진공 회수한 뒤 자동 파쇄, 비중·자력·정전 선별 및 제련 공정을 거쳐 금속과 고분자를 분리 추출합니다."
+        ),
+        "environment": (
+            "광산에서 금 1톤을 채굴하려면 수십만 톤의 암석을 파쇄하고 시안화물 등 독성 화학물질을 사용해야 하지만, 폐휴대폰 기판에서는 수십 배 높은 농도로 귀금속을 회수할 수 있습니다. "
+            "또한 냉장고·에어컨의 냉매 가스가 대기 중으로 누출되는 것을 막아 이산화탄소보다 수백~수천 배 높은 지구온난화지수(GWP)를 가진 온실가스 배출을 차단합니다."
+        ),
+        "personal": (
+            "폐가전 무상방문수거 제도를 이용하면 대형 폐기물 스티커 수수료(수천~수만 원)를 절약할 수 있습니다. "
+            "배출 전 스마트폰·PC의 저장장치를 초기화하고 물리적으로 정리함으로써 개인 데이터 및 금융 정보 유출을 예방할 수 있습니다."
+        ),
+        "caution": "개인정보가 담긴 저장 매체는 반드시 공장 초기화 또는 데이터 완전 삭제 후 배출해야 합니다.",
+    },
+    "폐식용유": {
+        "category": "전자·특수 품목 재활용",
+        "keywords": ["폐식용유", "식용유", "튀김기름", "기름"],
+        "disposal": "음식물 찌꺼기를 거름망으로 걸러낸 뒤 완전히 식혀서 페트병이나 밀폐 용기에 담아 아파트·주민센터의 폐식용유 전용 수거함에 배출합니다.",
+        "science": (
+            "식물성 식용유는 글리세롤 1분자에 불포화·포화 지방산 3분자가 에스터 결합한 트라이글리세라이드(Triglyceride)입니다. "
+            "수거된 폐식용유는 불순물 정제 후 메탄올과 촉매(수산화나트륨 등)를 이용한 전이에스터화(Transesterification) 반응을 거쳐 지방산 메틸 에스터(FAME), 즉 바이오디젤(Biodiesel)이나 바이오항공유(SAF) 원료로 전환됩니다."
+        ),
+        "environment": (
+            "폐식용유 1L를 하수구로 흘려보내면 물 표면에 유막을 형성해 대기 중 산소 용해를 차단하고, 생물학적 산소 요구량(BOD)을 급증시켜 수생태계 부영양화와 저산소증을 유발합니다. "
+            "반면 바이오연료로 전환하면 경유·항공유 등 화석연료를 대체하여 생애주기 기준 온실가스 배출을 최대 70~80%까지 저감할 수 있습니다."
+        ),
+        "personal": (
+            "주방 싱크대 배수관에 기름을 버리지 않으면 냉각된 유지방이 배관 내벽에 고착되어 발생하는 배수구 막힘, 악취, 역류 현상을 방지해 수리 비용과 위생 문제를 예방할 수 있습니다."
+        ),
+        "caution": "뜨거운 기름을 플라스틱 용기에 바로 부으면 용기가 열변형되어 화상을 입을 수 있으므로 반드시 상온으로 식힌 뒤 옮겨 담습니다.",
+    },
+}
+
+PRACTICES = {
+    "대기전력 차단 및 멀티탭 전원 관리": {
+        "category": "에너지 절약",
+        "keywords": [
+            "대기전력", "플러그", "콘센트", "전원 끄기", "전기 끄기", "멀티탭",
+            "코드 뽑", "플러그 뽑", "불 끄기", "전등 끄기", "소등", "절전", "전기 절약"
+        ],
+        "science": (
+            "전자제품은 주 전원이 꺼져 있어도 내부 전원공급장치(SMPS)의 변압기 코일 여자 전류, 리모컨 적외선 수신 센서, 네트워크 대기 모듈 유지를 위해 미세 전류를 지속적으로 소비합니다. "
+            "소비전력 $P(\\text{W})$인 기기가 시간 $t(\\text{h})$ 동안 소비하는 전력량은 $E = P \\times t\\,(\\text{Wh})$이며, 물리적 스위치가 달린 멀티탭으로 회로를 개방(Open Circuit)하면 전류 흐름을 차단해 대기전력을 $0\\,\\text{W}$로 만들 수 있습니다."
+        ),
+        "environment": (
+            "한국전력거래소 전력통계 기준 국내 발전믹스에서 석탄·LNG 등 화석연료 발전이 차지하는 비중을 고려할 때, 전력 소비량 $1\\,\\text{kWh}$ 감축은 약 $0.45\\sim 0.47\\,\\text{kgCO}_2\\text{eq}$의 온실가스 배출 저감으로 직결됩니다. "
+            "특히 전력 수요가 급증하는 피크 시간대의 불필요한 부하 감소는 첨두부하 발전기(고탄소 발전원) 가동을 억제합니다."
+        ),
+        "personal": (
+            "한국에너지공단 실측 조사 기준 가정 내 소비전력의 약 6~11%가 대기전력으로 낭비되며, 셋톱박스·PC 주변기기·전자레인지 등의 대기전력을 차단하면 누진세 구간 진입을 완화해 월간 전기요금을 실질적으로 절감할 수 있습니다. "
+            "또한 노후 어댑터의 상시 발열을 줄여 트래킹 현상으로 인한 전기 화재 위험도 낮춥니다."
+        ),
+        "tip": "셋톱박스·TV·데스크톱 본체·모니터처럼 대기전력이 큰 기기는 개별 스위치 멀티탭에 묶어 관리하고, 냉장고나 공유기처럼 상시 가동이 필요한 기기는 제외합니다.",
+    },
+    "적정 냉난방 온도 유지 및 열손실 관리": {
+        "category": "에너지 절약",
+        "keywords": [
+            "에어컨", "난방", "냉방", "보일러", "온도", "히터", "선풍기", "커튼", "단열", "내복"
+        ],
+        "science": (
+            "열역학 제2법칙에 따라 열은 고온에서 저온으로 이동하며, 단위 시간당 전도·대류에 의한 열손실률은 실내외 온도 차($\\Delta T$)에 비례합니다($\\dot{Q} \\propto \\Delta T$). "
+            "냉난방기(히트펌프)의 성능계수(COP) 역시 실내외 온도 차가 커질수록 급격히 저하되므로, 설정 온도를 $1^\\circ\\text{C}$ 완화할 때마다 압축기 일률과 연료 연소량이 비선형적으로 감소합니다."
+        ),
+        "environment": (
+            "건물 부문은 국가 전체 온실가스 배출량의 약 20~25%를 차지하며 그중 냉난방 비중이 가장 큽니다. "
+            "여름철 실내 냉방 온도를 $26^\\circ\\text{C}$ 이상, 겨울철 난방 온도를 $20^\\circ\\text{C}$ 이하로 유지하면 발전소 석탄·가스 연소량과 도시가스($\\text{CH}_4$) 직접 연소에 따른 이산화탄소 및 질소산화물($\\text{NO}_x$) 배출을 크게 줄일 수 있습니다."
+        ),
+        "personal": (
+            "냉난방 설정 온도를 $1^\\circ\\text{C}$ 조정하면 냉난방 에너지를 약 7% 절약하여 계절별 냉난방비 부담을 낮출 수 있습니다. "
+            "생리학적으로도 실내외 온도 차이를 $5^\\circ\\text{C}$ 이내로 유지하면 자율신경계 불균형으로 인한 냉방병·두통·호흡기 점막 건조증을 예방해 학습 집중력을 유지하는 데 유리합니다."
+        ),
+        "tip": "에어컨 가동 초기에는 강풍으로 빠르게 온도를 낮춘 뒤 적정 온도를 유지하고, 선풍기·서큘레이터로 실내 대류를 순환시키면 체감 온도를 약 $2^\\circ\\text{C}$ 더 낮출 수 있습니다.",
+    },
+    "절수 습관 및 온수 사용 시간 단축": {
+        "category": "자원 절약·재사용",
+        "keywords": [
+            "샤워", "물 절약", "수도", "양치", "양치컵", "물 틀어놓", "절수", "빨래 모아서", "설거지통"
+        ],
+        "science": (
+            "상수도는 취수·응집·침전·여과·소독 정수 공정과 가압 펌프 송수를 거쳐 공급되며, 사용 후 하수처리장의 미생물 호기성 분해 공정을 거치므로 물 $1\\,\\text{m}^3$당 상당한 전기에너지가 투입됩니다. "
+            "특히 온수를 사용할 때는 물의 큰 비열($c = 4.184\\,\\text{kJ/kg}\\cdot\\text{K}$) 때문에 수온을 $25^\\circ\\text{C}$ 상승시키는 데 막대한 열에너지($Q = mc\\Delta T$)가 추가로 소모됩니다."
+        ),
+        "environment": (
+            "샤워 시간을 5분 단축하면 약 40~60L의 상수도와 온수 가열용 도시가스·전력을 동시에 절약할 수 있습니다. "
+            "이는 정수장 약품 사용량과 하수처리장의 폭기조 전력 소모를 줄이고, 가뭄 시 하천 유지유량을 확보하여 담수 생태계의 수질과 생물다양성을 보전하는 데 기여합니다."
+        ),
+        "personal": (
+            "상·하수도 요금과 가스·전기 온수 가열비를 동시에 절감할 수 있으며, 불필요한 장시간 온수 샤워를 줄이면 피부 장벽의 천연 지질막 손상과 건조증을 완화하는 피부 건강상의 이점도 얻을 수 있습니다."
+        ),
+        "tip": "양치컵 사용(1회당 약 5L 절약), 설거지통 활용, 절수형 샤워헤드 장착을 병행하면 생활의 불편 없이 물 사용량을 30% 이상 줄일 수 있습니다.",
+    },
+    "식량 폐기물 및 잔반 최소화": {
+        "category": "자원 절약·재사용",
+        "keywords": [
+            "잔반", "음식물", "음식 남기", "먹을 만큼", "식량", "급식", "음식물 쓰레기", "유통기한"
+        ],
+        "science": (
+            "식량 생산은 질소·인 비료 제조(하버-보슈 공정), 관개 농업, 냉장 유통(콜드체인)을 거치는 에너지 집약적 시스템입니다. "
+            "버려진 음식물 쓰레기가 매립지 등 혐기성 조건에서 메탄생성균에 의해 분해되면 이산화탄소보다 지구온난화지수(GWP, 100년 기준)가 약 28배 높은 메탄($\\text{CH}_4$)이 발생합니다."
+        ),
+        "environment": (
+            "유엔환경계획(UNEP)과 IPCC 보고서에 따르면 전 세계 온실가스 배출량의 약 8~10%가 생산되었으나 소비되지 못하고 폐기되는 식량에서 기인합니다. "
+            "잔반을 줄이면 농경지 확장을 위한 산림 훼손, 비료 유출로 인한 하천 녹조 현상, 음폐수(음식물 폐수) 처리 부하를 근본적으로 줄일 수 있습니다."
+        ),
+        "personal": (
+            "적정 섭취량을 계획해 식사하면 과식으로 인한 대사 부담을 줄이고 식비와 음식물 종량제 배출 수수료를 절약할 수 있습니다. "
+            "또한 가정 내 부패 음식물을 줄여 초파리·곰팡이 포자 발생을 억제하고 주방 위생을 청결하게 관리할 수 있습니다."
+        ),
+        "tip": "학교 급식이나 외식 시 처음부터 먹을 수 있는 양만 배식받고, 가정에서는 냉장고 식재료 목록을 관리해 선입선출(FIFO) 원칙으로 소비합니다.",
+    },
+    "텀블러 · 다회용기 반복 사용": {
+        "category": "자원 절약·재사용",
+        "keywords": [
+            "텀블러", "다회용 컵", "개인 컵", "일회용 컵", "다회용기", "개인컵", "머그컵", "보온병", "빨대"
+        ],
+        "science": (
+            "전과정평가(LCA) 관점에서 스테인리스 스틸(SUS304)이나 폴리프로필렌 텀블러는 원광석 제련 및 성형 단계에서 일회용 종이컵(내부 PE 코팅)이나 PET 컵보다 초기 탄소발자국이 큽니다. "
+            "그러나 1회 사용당 폐기물 발생량이 거의 0에 수렴하므로, 손익분기점(환경 부담 상쇄 시점, 재질에 따라 약 15~50회) 이상 반복 사용하면 누적 환경 부하가 일회용품보다 현저히 낮아집니다."
+        ),
+        "environment": (
+            "일회용 종이컵은 내부 폴리에틸렌(PE) 방수 코팅 때문에 일반 폐지와 섞이면 재활용률이 극히 낮고, 일회용 플라스틱 컵은 짧은 사용 시간(평균 30분 미만) 대비 수백 년간 폐기물로 남습니다. "
+            "다회용 컵 정착은 펄프·플라스틱 원료 채굴과 소각장 다이옥신·온실가스 배출을 동시에 감축합니다."
+        ),
+        "personal": (
+            "국내 주요 커피 전문점과 프랜차이즈에서 시행하는 개인 컵 할인(잔당 300~500원) 및 탄소중립실천포인트 적립 혜택을 통해 음료 구매 비용을 직접 절약할 수 있습니다. "
+            "또한 뜨거운 음료를 담을 때 일회용 컵 내부 플라스틱 코팅층에서 용출될 수 있는 미세플라스틱과 화학 첨가물 섭취를 예방합니다."
+        ),
+        "tip": "환경 보호 효과를 극대화하려면 새 텀블러를 여러 개 수집하기보다 이미 보유한 텀블러를 수백 회 이상 장기간 사용하고, 세척 시 적정량의 세제를 사용합니다.",
+    },
+    "장바구니 · 다회용 에코백 활용": {
+        "category": "자원 절약·재사용",
+        "keywords": [
+            "장바구니", "에코백", "비닐봉지", "다회용 가방", "쇼핑백", "종이봉투", "비닐봉투"
+        ],
+        "science": (
+            "일회용 비닐봉투는 주로 고밀도 폴리에틸렌(HDPE) 필름으로 제작되며 제조 에너지는 낮지만 인장 강도가 약해 1~2회 사용 후 폐기됩니다. "
+            "반면 재활용 폴리에스터(r-PET)나 부직포 다회용 장바구니는 내구성이 높아 수십~수백 회 반복 사용이 가능하므로 단위 운반 횟수당 자원 투입량과 폐기물 질량을 급격히 낮춥니다."
+        ),
+        "environment": (
+            "비닐봉투 사용 억제는 석유계 폴리올레핀 소비를 줄일 뿐 아니라, 매립·투기된 비닐이 토양 투수성을 저해하고 해양 생물(바다거북·바닷새 등)의 섭식 피해를 유발하는 생태계 교란을 방지합니다."
+        ),
+        "personal": (
+            "편의점·마트에서 유상 판매되는 일회용 봉투 구매 비용을 반복적으로 절약할 수 있고, 손잡이 내구성이 높은 장바구니를 사용하면 무거운 식료품 운반 시 봉투 파손으로 인한 불편을 줄일 수 있습니다."
+        ),
+        "tip": "유기농 면 에코백은 목화 재배 시 물과 비료 투입량이 많아 최소 100회 이상 사용해야 환경 이득이 발생하므로, 기존에 가진 가방을 오래 쓰는 것이 가장 과학적입니다.",
+    },
+    "가까운 거리 도보 · 자전거 · 대중교통 이용": {
+        "category": "친환경 이동",
+        "keywords": [
+            "걷기", "도보", "자전거", "자동차 대신", "차 대신", "대중교통", "버스", "지하철",
+            "따릉이", "걸어가", "걸어다니", "전기자전거"
+        ],
+        "science": (
+            "내연기관 승용차는 가솔린(옥탄 $\\text{C}_8\\text{H}_{18}$ 등 탄화수소 혼합물)의 연소 반응($2\\text{C}_8\\text{H}_{18} + 25\\text{O}_2 \\rightarrow 16\\text{CO}_2 + 18\\text{H}_2\\text{O}$)을 통해 화학에너지를 운동에너지로 전환하며, "
+            "열역학적 카르노 효율 한계로 인해 연료 에너지의 약 70~75%가 폐열로 손실됩니다. 휘발유 1L 연소 시 약 $2.1\\sim 2.3\\,\\text{kg}$의 $\\text{CO}_2$가 배출되는 반면, 도보와 자전거는 화석연료 연소가 전혀 없는 무배출(Zero-Emission) 이동 수단입니다."
+        ),
+        "environment": (
+            "수송 부문은 국가 온실가스 배출의 약 14%를 차지하며, 특히 $2\\sim 3\\,\\text{km}$ 이내 단거리 주행에서는 엔진 예열 전 불완전 연소 비율이 높아 일산화탄소($\\text{CO}$), 탄화수소($\\text{HC}$), 질소산화물($\\text{NO}_x$) 및 타이어 마모 미세먼지($\\text{PM}_{2.5}$)가 집중 배출됩니다. "
+            "단거리 차량 이용을 도보·자전거·대중교통으로 전환하면 도심 열섬 현상과 광화학 스모그 생성을 크게 억제합니다."
+        ),
+        "personal": (
+            "유류비·주차비·교통비를 직접 절감할 수 있으며, 하루 30분 이상의 유산소 신체 활동은 심폐 지구력 향상, 인슐린 감수성 개선, 세로토닌 분비 촉진을 통한 학업 스트레스 완화에 과학적으로 입증된 건강 효과를 제공합니다."
+        ),
+        "tip": "편도 2km 이내 거리는 도보, 5km 이내는 자전거·공공자전거를 우선 선택하고, 장거리 이동 시에는 승객 1인당 탄소 배출량이 승용차의 1/5 수준인 지하철·버스를 이용합니다.",
+    },
+    "종이 양면 인쇄 · 이면지 활용 · 디지털 문서화": {
+        "category": "자원 절약·재사용",
+        "keywords": [
+            "양면 인쇄", "이면지", "종이 아끼", "종이 절약", "태블릿", "전자문서", "모아찍기", "프린트"
+        ],
+        "science": (
+            "백상지(복사용지)는 목재 칩에서 리그닌을 화학적으로 제거한 표백 화학 펄프로 제조되며, 펄프 1톤 생산에는 약 2~2.5톤의 목재와 대량의 염소계·산소계 표백제 및 건조용 증기 에너지가 소모됩니다. "
+            "양면 인쇄 및 2쪽 모아찍기는 동일한 정보 전달량 대비 필요한 셀룰로오스 섬유의 질량을 50~75%까지 직접 감축합니다."
+        ),
+        "environment": (
+            "복사용지 1박스(2,500매, 약 12.5kg) 생산에는 약 $30\\,\\text{kgCO}_2\\text{eq}$ 이상의 온실가스와 수백 리터의 공업용수가 투입됩니다. "
+            "출력량 자체를 줄이는 원천 감량(Reduce)은 재활용(Recycle)보다 에너지 소비와 폐수 발생을 훨씬 효과적으로 낮추며 원시림의 탄소 고정 능력을 보전합니다."
+        ),
+        "personal": (
+            "프린터 토너·잉크 카트리지와 복사용지 구매 비용을 절감할 수 있으며, 레이저 프린터 가동 시 정착기 가열 과정에서 발생할 수 있는 휘발성 유기화합물(VOCs) 및 초미세먼지 실내 노출도 줄여 학습 공간의 공기질을 보호합니다."
+        ),
+        "tip": "프린터 기본 설정을 '양면 인쇄'로 고정하고, 한쪽 면만 사용한 인쇄물은 개인정보 여부를 확인한 뒤 연습장·메모지로 재사용합니다.",
+    },
+    "탄소발자국 적은 식단 및 로컬푸드 선택": {
+        "category": "자원 절약·재사용",
+        "keywords": [
+            "채식", "육류 줄이기", "로컬푸드", "제철 음식", "저탄소 식단", "푸드 마일리지", "고기 줄이기", "식단"
+        ],
+        "science": (
+            "생태계 에너지 피라미드에서 영양 단계가 한 단계 올라갈 때마다 에너지의 약 10%만 전달되고 나머지 90%는 호흡열 등으로 소실됩니다. "
+            "따라서 곡물을 사료로 재배해 반추동물(소 등)을 사육하는 축산업은 동일 단백질 생산 대비 토지·수자원 투입량이 매우 크며, 반추위 내 장내 발효 과정에서 다량의 메탄($\\text{CH}_4$)이 방출됩니다. "
+            "또한 로컬푸드는 수송 거리와 냉장 보관 기간을 줄여 푸드 마일리지(Food Mileage) 기반 수송 연료 연소를 최소화합니다."
+        ),
+        "environment": (
+            "전과정평가 기준 소고기 $1\\,\\text{kg}$ 생산에는 약 $60\\,\\text{kgCO}_2\\text{eq}$ 이상이 배출되는 반면, 두부·콩류·채소류는 $2\\sim 3\\,\\text{kgCO}_2\\text{eq}$ 수준에 불과합니다. "
+            "주 1~2회 저탄소 식단 실천과 지역 제철 농산물 소비는 축산 분뇨로 인한 수질 부영양화와 장거리 해상·항공 물류 탄소 배출을 크게 저감합니다."
+        ),
+        "personal": (
+            "식이섬유와 항산화 파이토케미컬이 풍부한 식물성 식단 및 신선한 제철 로컬푸드 섭취는 포화지방 과잉 섭취를 줄여 심혈관 대사 건강을 개선하고, 장내 유익균(마이크로바이옴) 다양성을 높여 면역 기능과 컨디션 유지에 도움을 줍니다."
+        ),
+        "tip": "모든 식사를 바꿀 필요 없이 '주 1회 채식의 날'을 정하거나, 가공식품 대신 인근 지역에서 생산된 제철 식재료를 우선 선택하는 것만으로도 큰 탄소 감축 효과를 얻을 수 있습니다.",
+    },
+    "중고 거래 · 의류 수선 · 패스트패션 지양": {
+        "category": "자원 절약·재사용",
+        "keywords": [
+            "중고", "당근", "나눔", "수선", "옷", "의류", "헌옷", "리폼", "물물교환", "패스트패션", "재사용"
+        ],
+        "science": (
+            "현대 의류 산업은 폴리에스터(PET 합성섬유)와 면화(천연 셀룰로오스)를 방적·제직·염색 가공해 생산하며, 특히 합성섬유 세탁 과정에서는 마찰로 인해 1회 세탁당 수십만 가닥의 미세플라스틱 섬유(Microfiber)가 하수로 방출됩니다. "
+            "기존 제품의 수명을 연장해 재사용(Reuse)하는 것은 원면 재배·석유화학 방사·염색 폐수 처리 공정의 신규 투입을 100% 대체하는 가장 직접적인 자원 순환 방식입니다."
+        ),
+        "environment": (
+            "유엔무역개발회의(UNCTAD)에 따르면 패션·의류 산업은 전 세계 산업 폐수의 약 20%와 탄소 배출의 약 8~10%를 차지하며, 청바지 1벌 생산에 약 7,000L 이상의 물이 소모됩니다. "
+            "중고 거래와 의류 수선·재사용은 소각·매립되는 의류 폐기물 산더미를 줄이고 염색 공정의 중금속·유기염료 수계 유입을 막습니다."
+        ),
+        "personal": (
+            "불필요한 충동구매를 줄여 의류·생활용품 지출 비용을 크게 절약할 수 있으며, 미사용 물품을 중고 거래로 순환시키면 주거 공간의 수납 효율을 높이고 합리적인 자원 가치 판단 능력을 기를 수 있습니다."
+        ),
+        "tip": "안 입는 의류는 깨끗이 세탁해 의류수거함이나 기부 단체에 전달하고, 합성섬유 세탁 시에는 세탁망을 사용하면 미세섬유 방출량을 줄일 수 있습니다.",
+    },
+}
+
+ACTIVITY_TREE = {
+    "♻️ 재활용 (물질 순환)": {
+        "desc": "고분자·금속·유리·셀룰로오스 등 소재의 물리·화학적 특성을 유지한 채 원료로 재가공하는 활동입니다.",
+        "subcategories": {
+            "🧴 플라스틱 재활용": {
+                "kind": "item",
+                "entries": [
+                    "무색 투명 페트병 (PET)",
+                    "유색 페트병 (유색 PET)",
+                    "플라스틱 용기류 (HDPE · PP · PS)",
+                ],
+            },
+            "🛍️ 비닐·발포수지 재활용": {
+                "kind": "item",
+                "entries": [
+                    "비닐류 및 발포 폴리스티렌 (필름 · EPS)",
+                ],
+            },
+            "📄 종이·종이팩 재활용": {
+                "kind": "item",
+                "entries": [
+                    "일반 종이류 · 골판지 상자",
+                    "종이팩 (살균팩 · 멸균팩)",
+                ],
+            },
+            "🥫 유리·금속 재활용": {
+                "kind": "item",
+                "entries": [
+                    "유리병류",
+                    "철캔 · 알루미늄캔",
+                ],
+            },
+            "🔋 전자·특수 품목 재활용": {
+                "kind": "item",
+                "entries": [
+                    "폐건전지 · 리튬이온 배터리",
+                    "폐가전제품 · 전자폐기물 (E-Waste)",
+                    "폐식용유",
+                ],
+            },
+        },
+    },
+    "⚡ 에너지 절약": {
+        "desc": "전기·열에너지의 불필요한 전환 손실과 열전달 부하를 줄여 화석연료 발전 및 연소를 감축하는 활동입니다.",
+        "subcategories": {
+            "🔌 전기·대기전력 관리": {
+                "kind": "practice",
+                "entries": ["대기전력 차단 및 멀티탭 전원 관리"],
+            },
+            "🌡️ 냉난방·열역학 관리": {
+                "kind": "practice",
+                "entries": ["적정 냉난방 온도 유지 및 열손실 관리"],
+            },
+        },
+    },
+    "💧 자원 절약·재사용": {
+        "desc": "제품 전과정평가(LCA) 관점에서 신규 원료 채굴과 폐기물 발생을 원천 감량(Reduce)하고 수명을 연장(Reuse)하는 활동입니다.",
+        "subcategories": {
+            "🚰 수자원·식량·종이 감량": {
+                "kind": "practice",
+                "entries": [
+                    "절수 습관 및 온수 사용 시간 단축",
+                    "식량 폐기물 및 잔반 최소화",
+                    "종이 양면 인쇄 · 이면지 활용 · 디지털 문서화",
+                ],
+            },
+            "🥤 다회용품 및 순환 소비": {
+                "kind": "practice",
+                "entries": [
+                    "텀블러 · 다회용기 반복 사용",
+                    "장바구니 · 다회용 에코백 활용",
+                    "탄소발자국 적은 식단 및 로컬푸드 선택",
+                    "중고 거래 · 의류 수선 · 패스트패션 지양",
+                ],
+            },
+        },
+    },
+    "🚲 친환경 이동": {
+        "desc": "탄화수소 연료의 내연기관 연소를 무배출(Zero-Emission) 또는 고효율 대중수송으로 대체하는 활동입니다.",
+        "subcategories": {
+            "🚶 무배출 · 대중교통 전환": {
+                "kind": "practice",
+                "entries": ["가까운 거리 도보 · 자전거 · 대중교통 이용"],
+            },
+        },
+    },
+}
+
+KEYWORD_INDEX = []
+for item_name, item in ITEMS.items():
+    for kw in item["keywords"]:
+        KEYWORD_INDEX.append((kw.lower(), "item", item_name))
+for prac_name, prac in PRACTICES.items():
+    for kw in prac["keywords"]:
+        KEYWORD_INDEX.append((kw.lower(), "practice", prac_name))
+
+
+def analyze_user_action(user_text: str):
+    raw = user_text.strip().lower()
+    if not raw:
+        return []
+
+    compact = re.sub(r"\s+", "", raw)
+    scores = {}
+
+    for kw, kind, name in KEYWORD_INDEX:
+        kw_compact = re.sub(r"\s+", "", kw)
+        if kw in raw or kw_compact in compact:
+            weight = len(kw_compact) * 2
+            prev = scores.get((kind, name), 0)
+            scores[(kind, name)] = prev + weight
+
+    if not scores:
+        return []
+
+    ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    results = []
+    for (kind, name), _score in ranked[:2]:
+        data = ITEMS[name] if kind == "item" else PRACTICES[name]
+        results.append((kind, name, data))
+    return results
+
+
+def render_analysis_report(title: str, data: dict, item_mode: bool = False):
+    st.markdown(
+        f"""
+        <div class="report-header-box">
+            <div class="badge-pill">{data['category']}</div>
+            <h3 class="report-title">{title}</h3>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    if item_mode:
+        st.markdown(
+            f"""
+            <div class="analysis-block">
+                <div class="analysis-label">📌 표준 분리배출 프로토콜</div>
+                <p class="analysis-text">{data['disposal']}</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    st.markdown(
+        f"""
+        <div class="analysis-block">
+            <div class="analysis-label">🔬 과학적 원리</div>
+            <p class="analysis-text">{data['science']}</p>
+        </div>
+        <div class="analysis-block">
+            <div class="analysis-label">🌍 환경 시스템에 미치는 영향</div>
+            <p class="analysis-text">{data['environment']}</p>
+        </div>
+        <div class="analysis-block">
+            <div class="analysis-label">🧬 나에게 미치는 영향 (경제 · 보건 · 생활 시스템)</div>
+            <p class="analysis-text">{data['personal']}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    if item_mode:
+        st.warning(f"**배출 시 유의사항:** {data['caution']}")
+    else:
+        st.info(f"**실천 최적화 가이드:** {data['tip']}")
+
+
+st.markdown(
+    """
+    <div class="lab-header">
+        <div class="lab-kicker">ECO-SCIENCE MECHANISM ARCHIVE</div>
+        <h1 class="lab-title">일상 행동의 과학적 메커니즘</h1>
+        <p class="lab-subtitle">
+            분리배출과 에너지·자원 절약이 지구 환경 시스템과 개인의 삶에 미치는 영향을
+            과학적 원리로 정밀 분석합니다.
+        </p>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+MENU_OPTIONS = [
+    "1. 유형별 환경보호 활동 탐구",
+    "2. 나의 실천 활동 과학적 분석",
+    "3. 실천 소감 및 탐구 기록 게시판",
+]
+
+if "active_section" not in st.session_state:
+    st.session_state["active_section"] = MENU_OPTIONS[0]
+
+nav_cols = st.columns(3)
+for idx, option in enumerate(MENU_OPTIONS):
+    is_active = st.session_state["active_section"] == option
+    with nav_cols[idx]:
+        if st.button(
+            option,
+            key=f"top_nav_{idx}",
+            type="primary" if is_active else "secondary",
+            use_container_width=True,
+        ):
+            st.session_state["active_section"] = option
+            st.rerun()
+
+st.markdown("<div style='height: 0.6rem;'></div>", unsafe_allow_html=True)
+
+active = st.session_state["active_section"]
+
+if active == MENU_OPTIONS[0]:
+    st.markdown("### 1. 유형별 환경보호 활동 탐구")
+    st.caption("관심 있는 활동 영역 버튼을 차례대로 선택하면 해당 항목의 과학적 원리와 다층적 영향을 확인할 수 있습니다.")
+
+    if "selected_main_cat" not in st.session_state:
+        st.session_state["selected_main_cat"] = "♻️ 재활용 (물질 순환)"
+    if "selected_sub_cat" not in st.session_state:
+        st.session_state["selected_sub_cat"] = "🧴 플라스틱 재활용"
+    if "selected_entry" not in st.session_state:
+        st.session_state["selected_entry"] = "무색 투명 페트병 (PET)"
+
+    main_cats = list(ACTIVITY_TREE.keys())
+    main_cols = st.columns(len(main_cats))
+    for idx, m_cat in enumerate(main_cats):
+        is_sel = st.session_state["selected_main_cat"] == m_cat
+        with main_cols[idx]:
+            if st.button(
+                m_cat,
+                key=f"m_cat_{idx}",
+                type="primary" if is_sel else "secondary",
+                use_container_width=True,
+            ):
+                st.session_state["selected_main_cat"] = m_cat
+                first_sub = list(ACTIVITY_TREE[m_cat]["subcategories"].keys())[0]
+                st.session_state["selected_sub_cat"] = first_sub
+                st.session_state["selected_entry"] = ACTIVITY_TREE[m_cat]["subcategories"][first_sub]["entries"][0]
+                st.rerun()
+
+    current_main = st.session_state["selected_main_cat"]
+    main_info = ACTIVITY_TREE[current_main]
+    st.info(f"**{current_main}** — {main_info['desc']}")
+
+    subcats = list(main_info["subcategories"].keys())
+    st.markdown("**세부 분야 선택**")
+    sub_cols = st.columns(len(subcats))
+    for idx, s_cat in enumerate(subcats):
+        is_sub_sel = st.session_state["selected_sub_cat"] == s_cat
+        with sub_cols[idx]:
+            if st.button(
+                s_cat,
+                key=f"s_cat_{current_main}_{idx}",
+                type="primary" if is_sub_sel else "secondary",
+                use_container_width=True,
+            ):
+                st.session_state["selected_sub_cat"] = s_cat
+                st.session_state["selected_entry"] = main_info["subcategories"][s_cat]["entries"][0]
+                st.rerun()
+
+    current_sub = st.session_state["selected_sub_cat"]
+    if current_sub not in main_info["subcategories"]:
+        current_sub = subcats[0]
+        st.session_state["selected_sub_cat"] = current_sub
+
+    sub_info = main_info["subcategories"][current_sub]
+    entries = sub_info["entries"]
+
+    st.markdown("**상세 항목 선택**")
+    entry_cols = st.columns(min(len(entries), 4))
+    for idx, entry_name in enumerate(entries):
+        is_ent_sel = st.session_state["selected_entry"] == entry_name
+        with entry_cols[idx % len(entry_cols)]:
+            if st.button(
+                entry_name,
+                key=f"ent_{current_sub}_{idx}",
+                type="primary" if is_ent_sel else "secondary",
+                use_container_width=True,
+            ):
+                st.session_state["selected_entry"] = entry_name
+                st.rerun()
+
+    current_entry = st.session_state["selected_entry"]
+    if current_entry not in entries:
+        current_entry = entries[0]
+        st.session_state["selected_entry"] = current_entry
+
+    if sub_info["kind"] == "item":
+        render_analysis_report(current_entry, ITEMS[current_entry], item_mode=True)
+    else:
+        render_analysis_report(current_entry, PRACTICES[current_entry], item_mode=False)
+
+elif active == MENU_OPTIONS[1]:
+    st.markdown("### 2. 나의 실천 활동 과학적 분석")
+    st.write(
+        "일상에서 실천한 환경보호 행동을 자유롭게 서술하면, 관련된 물질 순환·에너지 전환·전과정평가(LCA) 메커니즘을 자동으로 분석합니다."
+    )
+
+    st.caption("예시 문장 클릭으로 바로 테스트해 보기:")
+    ex_cols = st.columns(4)
+    examples = [
+        "투명 페트병 라벨을 떼고 찌그러뜨려서 버렸다",
+        "안 쓰는 멀티탭 전원을 끄고 양치컵을 사용했다",
+        "가까운 학교까지 차 대신 걸어가고 텀블러를 썼다",
+        "우유팩을 씻어 말리고 부탄가스 가스를 빼서 배출했다",
+    ]
+    for idx, ex_text in enumerate(examples):
+        with ex_cols[idx]:
+            if st.button(f"예시 {idx+1}", key=f"ex_btn_{idx}", use_container_width=True):
+                st.session_state["action_input_value"] = ex_text
+                st.session_state["my_action_text"] = ex_text
+                st.session_state["my_action_results"] = analyze_user_action(ex_text)
+                st.rerun()
+
+    with st.form("my_action_form", clear_on_submit=False):
+        user_action = st.text_input(
+            "실천한 환경보호 활동 입력",
+            value=st.session_state.get("action_input_value", ""),
+            placeholder="예: 배달 용기의 기름기를 씻어 분리배출하고, 종이는 양면 인쇄 후 이면지로 활용했다.",
+        )
+        submitted = st.form_submit_button("과학적 원리 및 영향 분석하기", type="primary", use_container_width=True)
+
+    if submitted:
+        st.session_state["action_input_value"] = user_action
+        if not user_action.strip():
+            st.warning("분석할 환경보호 실천 내용을 입력해 주세요.")
+            st.session_state["my_action_results"] = None
+        else:
+            st.session_state["my_action_text"] = user_action.strip()
+            st.session_state["my_action_results"] = analyze_user_action(user_action)
+
+    results = st.session_state.get("my_action_results")
+    if results is not None:
+        st.markdown("---")
+        st.caption(f"입력된 활동: **{st.session_state.get('my_action_text', '')}**")
+        if len(results) > 0:
+            matched_names = ", ".join([r[1] for r in results])
+            st.success(f"분석 완료 — 연관 메커니즘 **{len(results)}건**을 도출했습니다: **{matched_names}**")
+            for kind, name, data in results:
+                render_analysis_report(name, data, item_mode=(kind == "item"))
+        else:
+            st.info(
+                "입력한 문장에서 구체적인 품목이나 에너지·자원 활동을 식별하지 못했습니다. "
+                "예: '페트병', '우유팩', '배달 용기', '캔', '건전지', '대기전력', '에어컨', '샤워', '잔반', '텀블러', '장바구니', '자전거', '양면 인쇄', '채식', '중고 거래' 등의 핵심 단어를 포함해 입력해 보세요."
+            )
+
+elif active == MENU_OPTIONS[2]:
+    st.markdown("### 3. 실천 소감 및 탐구 기록 게시판")
+    st.write(
+        "직접 실천한 환경보호 활동과 과학적 원리를 탐구하며 느낀 점을 기록해 주세요. 작성된 게시글은 전체 이용자가 열람할 수 있습니다."
+    )
+
+    with st.form("reflection_board_form", clear_on_submit=True):
+        c1, c2 = st.columns(2)
+        with c1:
+            student_id = st.text_input("학번", placeholder="예: 20418")
+        with c2:
+            student_name = st.text_input("이름", placeholder="예: 이서연")
+        reflection_text = st.text_area(
+            "환경보호 활동 소감",
+            placeholder="실천한 환경보호 활동과 그 과정에 담긴 과학적 원리를 통해 새롭게 알게 된 점을 작성하세요.",
+            height=140,
+        )
+        post_btn = st.form_submit_button("게시하기", type="primary", use_container_width=True)
+
+    if post_btn:
+        if not student_id.strip() or not student_name.strip() or not reflection_text.strip():
+            st.warning("학번, 이름, 환경보호 활동 소감을 모두 입력해야 게시할 수 있습니다.")
+        else:
+            ok, msg = save_board_post(
+                student_id.strip(),
+                student_name.strip(),
+                reflection_text.strip(),
+            )
+            if ok:
+                st.success(msg)
+            else:
+                st.error(msg)
+
+    st.divider()
+    st.markdown("#### 전체 탐구·실천 소감 아카이브")
+    posts, is_persistent = load_board_posts()
+
+    if not is_persistent:
+        st.caption(
+            "※ 현재 외부 데이터베이스(Supabase) 환경변수가 연결되지 않아 세션 임시 저장소로 동작합니다. "
+            "Streamlit Secrets에 SUPABASE_URL과 SUPABASE_KEY를 등록하면 서버 DB에 영구 저장됩니다."
+        )
+
+    if not posts:
+        st.info("아직 등록된 게시글이 없습니다. 첫 번째 탐구 소감을 남겨 보세요.")
+    else:
+        st.caption(f"총 {len(posts)}개의 게시글이 공유되어 있습니다.")
+        for post in posts:
+            sid = post.get("student_id", "")
+            sname = post.get("student_name", "")
+            body = post.get("reflection", "")
+            created = str(post.get("created_at", ""))[:16].replace("T", " ")
+            st.markdown(
+                f"""
+                <div class="post-card">
+                    <div class="post-meta">
+                        {sid} {sname}
+                        <span class="post-time">{created}</span>
+                    </div>
+                    <div class="post-body">{body}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+st.markdown("<div style='height: 1.5rem;'></div>", unsafe_allow_html=True)
+with st.expander("📚 참고 자료 및 데이터 출처 안내"):
+    st.markdown(
+        """
+        - **기후에너지환경부 · 한국환경공단**: 생활폐기물 분리배출 가이드라인 및 재질중심 분리배출표시 제도 (2025)
+        - **한국에너지공단**: 대기전력저감 프로그램 및 건물·수송 부문 에너지 절약 통계
+        - **전과정평가(LCA) 기준**: ISO 14040/14044 전과정평가 표준 및 환경부 국가 LCI 데이터베이스
+        - **주의사항**: 실제 분리배출 세부 기준은 지자체 및 공동주택 수거 계약 방식에 따라 일부 상이할 수 있으므로 거주 지역의 최신 배출 안내를 병행 확인하시기 바랍니다.
+        """
+    )
