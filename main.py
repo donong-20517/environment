@@ -1,221 +1,208 @@
 import os
 import re
-from datetime import datetime, timezone, timedelta
 import streamlit as st
 
 st.set_page_config(
-    page_title="ECO-SCIENCE LAB | 환경 행동의 과학적 메커니즘",
-    page_icon="🔬",
+    page_title="ECO-SCIENCE LAB | 일상 생활 속 환경 보호",
+    page_icon="🌱",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
 
-KST = timezone(timedelta(hours=9))
+GOOGLE_FORM_URL = "https://docs.google.com/forms/d/1WSgTVosMOLuovwa33smGIwFDFzY_sM_Bzluk0RvD36Y/edit?hl=ko"
 
-
-@st.cache_resource
-def get_supabase_client():
-    url = None
-    key = None
-    try:
-        url = st.secrets.get("SUPABASE_URL")
-        key = st.secrets.get("SUPABASE_KEY")
-    except Exception:
-        pass
-    url = url or os.environ.get("SUPABASE_URL")
-    key = key or os.environ.get("SUPABASE_KEY")
-
-    if not url or not key:
-        return None
-    try:
-        from supabase import create_client
-        return create_client(url, key)
-    except Exception:
-        return None
-
-
-def load_board_posts():
-    client = get_supabase_client()
-    if client is not None:
-        try:
-            res = (
-                client.table("eco_reflection_board")
-                .select("*")
-                .order("created_at", desc=True)
-                .limit(150)
-                .execute()
-            )
-            return res.data or [], True
-        except Exception as e:
-            st.warning(f"외부 데이터베이스 조회 오류로 임시 세션 데이터를 표시합니다: {e}")
-    return st.session_state.get("fallback_posts", []), False
-
-
-def save_board_post(student_id: str, student_name: str, reflection: str):
-    now_kst = datetime.now(KST).strftime("%Y-%m-%d %H:%M")
-    client = get_supabase_client()
-    if client is not None:
-        try:
-            client.table("eco_reflection_board").insert(
-                {
-                    "student_id": student_id,
-                    "student_name": student_name,
-                    "reflection": reflection,
-                }
-            ).execute()
-            return True, "데이터베이스에 기록이 영구 저장되었습니다."
-        except Exception as e:
-            return False, f"데이터베이스 저장 실패 (테이블/권한 확인 필요): {e}"
-
-    posts = st.session_state.setdefault("fallback_posts", [])
-    posts.insert(
-        0,
-        {
-            "student_id": student_id,
-            "student_name": student_name,
-            "reflection": reflection,
-            "created_at": now_kst,
-        },
-    )
-    return True, "현재 세션에 게시글이 등록되었습니다."
-
-
+# -----------------------------
+# 파스텔톤 UI 스타일 (민트 · 세이지 · 크림 파스텔 팔레트)
+# -----------------------------
 st.markdown(
     """
     <style>
     @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
-    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&display=swap');
 
     html, body, [class*="css"] {
         font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
     }
     .stApp {
-        background-color: #f4f6f8;
-        color: #111827;
+        background: linear-gradient(180deg, #f7fbf9 0%, #f3f7f5 100%);
+        color: #1f2937;
     }
     .main .block-container {
-        max-width: 1180px;
-        padding-top: 1.8rem;
+        max-width: 1120px;
+        padding-top: 2rem;
         padding-bottom: 4rem;
     }
+
+    /* 상단 배너 */
     .lab-header {
-        background: linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #064e3b 100%);
-        border-radius: 20px;
-        padding: 2.1rem 2.4rem;
-        margin-bottom: 1.4rem;
-        box-shadow: 0 12px 28px -10px rgba(15, 23, 42, 0.25);
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: linear-gradient(135deg, #e0f5ec 0%, #eaf6ff 55%, #fdf2f8 100%);
+        border-radius: 24px;
+        padding: 2.3rem 2.5rem;
+        margin-bottom: 1.5rem;
+        border: 1.5px solid #cdebe0;
+        box-shadow: 0 8px 24px -8px rgba(16, 185, 129, 0.12);
     }
     .lab-kicker {
-        font-family: 'JetBrains Mono', monospace;
-        color: #34d399;
+        display: inline-block;
+        background-color: #ffffff;
+        color: #0d9488;
         font-size: 0.78rem;
         font-weight: 700;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
-        margin-bottom: 0.5rem;
+        letter-spacing: 0.08em;
+        padding: 0.3rem 0.75rem;
+        border-radius: 999px;
+        border: 1px solid #bce8dc;
+        margin-bottom: 0.75rem;
     }
     .lab-title {
-        color: #f8fafc;
-        font-size: 2.15rem;
+        color: #134e4a !important;
+        font-size: 2.2rem;
         font-weight: 800;
         letter-spacing: -0.025em;
-        margin: 0 0 0.55rem 0;
+        margin: 0 0 0.6rem 0;
         line-height: 1.25;
+        word-break: keep-all;
     }
     .lab-subtitle {
-        color: #cbd5e1;
-        font-size: 0.98rem;
+        color: #374151;
+        font-size: 1rem;
         line-height: 1.65;
         margin: 0;
         max-width: 820px;
+        word-break: keep-all;
     }
+
+    /* 분석 리포트 헤더 카드 */
     .report-header-box {
-        background: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-left: 5px solid #059669;
-        border-radius: 14px;
-        padding: 1.25rem 1.5rem;
-        margin: 0.8rem 0 1rem 0;
-        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.03);
+        background: linear-gradient(135deg, #ffffff 0%, #f0fdf8 100%);
+        border: 1.5px solid #ccece0;
+        border-left: 6px solid #34d399;
+        border-radius: 18px;
+        padding: 1.3rem 1.6rem;
+        margin: 0.9rem 0 1rem 0;
+        box-shadow: 0 4px 14px rgba(16, 185, 129, 0.06);
     }
     .badge-pill {
         display: inline-block;
-        background: #ecfdf5;
-        color: #047857;
-        border: 1px solid #a7f3d0;
-        border-radius: 6px;
-        padding: 0.2rem 0.6rem;
-        font-size: 0.78rem;
+        background: #d1fae5;
+        color: #065f46;
+        border-radius: 999px;
+        padding: 0.25rem 0.75rem;
+        font-size: 0.8rem;
         font-weight: 700;
         margin-bottom: 0.45rem;
     }
     .report-title {
-        color: #0f172a;
+        color: #111827 !important;
         font-size: 1.35rem;
         font-weight: 800;
         margin: 0;
         letter-spacing: -0.02em;
+        word-break: keep-all;
     }
+
+    /* 본문 분석 블록 카드 */
     .analysis-block {
         background: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-radius: 14px;
-        padding: 1.3rem 1.5rem;
-        margin-bottom: 0.85rem;
-        box-shadow: 0 1px 4px rgba(15, 23, 42, 0.02);
+        border: 1.5px solid #e5efe9;
+        border-radius: 18px;
+        padding: 1.35rem 1.6rem;
+        margin-bottom: 0.9rem;
+        box-shadow: 0 3px 12px rgba(15, 23, 42, 0.03);
     }
     .analysis-label {
-        font-size: 0.95rem;
+        font-size: 0.98rem;
         font-weight: 800;
-        color: #0f172a;
+        color: #0f766e;
         margin-bottom: 0.55rem;
     }
     .analysis-text {
-        color: #334155;
-        font-size: 0.95rem;
-        line-height: 1.78;
+        color: #374151;
+        font-size: 0.96rem;
+        line-height: 1.8;
         margin: 0;
+        word-break: keep-all;
     }
-    .post-card {
-        background: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-left: 4px solid #0f172a;
-        border-radius: 12px;
-        padding: 1.15rem 1.4rem;
-        margin-bottom: 0.8rem;
-        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.03);
+
+    /* 구글폼 안내 카드 */
+    .form-link-card {
+        background: linear-gradient(135deg, #f0f9ff 0%, #f5f3ff 100%);
+        border: 1.5px solid #dbeafe;
+        border-radius: 20px;
+        padding: 2rem 2.2rem;
+        margin: 1rem 0;
+        text-align: center;
+        box-shadow: 0 6px 20px rgba(59, 130, 246, 0.06);
     }
-    .post-meta {
-        color: #0f172a;
-        font-weight: 700;
-        font-size: 0.92rem;
-        margin-bottom: 0.45rem;
+    .form-link-title {
+        color: #1e3a8a;
+        font-size: 1.3rem;
+        font-weight: 800;
+        margin-bottom: 0.6rem;
     }
-    .post-time {
-        color: #64748b;
-        font-weight: 500;
-        font-size: 0.82rem;
-        margin-left: 0.5rem;
-    }
-    .post-body {
-        color: #334155;
+    .form-link-desc {
+        color: #4b5563;
+        font-size: 0.97rem;
         line-height: 1.7;
-        font-size: 0.95rem;
-        white-space: pre-wrap;
+        margin-bottom: 1.3rem;
+        word-break: keep-all;
     }
-    div.stButton > button {
-        border-radius: 10px;
-        font-weight: 600;
-        padding-top: 0.55rem;
-        padding-bottom: 0.55rem;
-        transition: all 0.15s ease;
+    .pastel-cta-btn {
+        display: inline-block;
+        background: linear-gradient(135deg, #6ee7b7 0%, #67e8f9 100%);
+        color: #064e3b !important;
+        font-weight: 800;
+        font-size: 1rem;
+        text-decoration: none !important;
+        padding: 0.85rem 2rem;
+        border-radius: 999px;
+        border: 1.5px solid #34d399;
+        box-shadow: 0 4px 14px rgba(16, 185, 129, 0.2);
+        transition: transform 0.15s ease;
+    }
+    .pastel-cta-btn:hover {
+        transform: translateY(-2px);
+    }
+
+    /* Streamlit 버튼 파스텔톤 커스터마이징 */
+    div.stButton > button[kind="primary"] {
+        background-color: #a7f3d0 !important;
+        color: #064e3b !important;
+        border: 1.5px solid #6ee7b7 !important;
+        border-radius: 14px !important;
+        font-weight: 700 !important;
+        box-shadow: 0 2px 8px rgba(16, 185, 129, 0.15) !important;
+    }
+    div.stButton > button[kind="primary"]:hover {
+        background-color: #6ee7b7 !important;
+        color: #022c22 !important;
+    }
+    div.stButton > button[kind="secondary"] {
+        background-color: #ffffff !important;
+        color: #374151 !important;
+        border: 1.5px solid #dcebe4 !important;
+        border-radius: 14px !important;
+        font-weight: 600 !important;
+    }
+    div.stButton > button[kind="secondary"]:hover {
+        background-color: #ecfdf5 !important;
+        border-color: #a7f3d0 !important;
+        color: #065f46 !important;
+    }
+    div[data-testid="stFormSubmitButton"] > button {
+        background-color: #bae6fd !important;
+        color: #0c4a6e !important;
+        border: 1.5px solid #7dd3fc !important;
+        border-radius: 14px !important;
+        font-weight: 700 !important;
     }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
+# -----------------------------
+# 품목 및 활동 데이터베이스 (수식 깨짐 방지 HTML/유니코드 적용)
+# -----------------------------
 ITEMS = {
     "무색 투명 페트병 (PET)": {
         "category": "플라스틱 재활용",
@@ -228,7 +215,7 @@ ITEMS = {
             "무색 페트병은 테레프탈산(TPA)과 에틸렌글리콜(EG)의 축합 중합으로 합성된 열가소성 폴리에스터인 "
             "폴리에틸렌 테레프탈레이트(PET)로 구성됩니다. PET는 결정화 속도와 용융 점도가 균일하여 가열 시 용융 방사(Melt Spinning)를 통해 "
             "장섬유(폴리에스터 원사)나 식품용 재생 펠릿(r-PET)으로 재가공할 수 있습니다. 반면 뚜껑(HDPE·PP)이나 PVC·접착식 라벨이 혼입되면 "
-            "용융 온도($T_m$) 차이와 열분해로 인한 염산($\\text{HCl}$) 발생·변색이 일어나 고분자 사슬의 고유 점도(IV)가 급격히 저하됩니다."
+            "용융 온도(T<sub>m</sub>) 차이와 열분해로 인한 염산(HCl) 발생·변색이 일어나 고분자 사슬의 고유 점도(IV)가 급격히 저하됩니다."
         ),
         "environment": (
             "고순도 투명 PET 회수는 원유 정제 및 나프타 분해(NCC)를 거쳐 신규 수지(Virgin PET)를 합성하는 화석연료 기반 공정을 대체합니다. "
@@ -267,8 +254,8 @@ ITEMS = {
         ],
         "disposal": "내용물과 기름기를 세척하여 제거하고, 금속 스프링이 든 펌프·다른 재질의 뚜껑·스티커를 분리한 뒤 재질 표시를 확인해 플라스틱류로 배출합니다.",
         "science": (
-            "생활 용기는 주로 고밀도 폴리에틸렌(HDPE), 폴리프로필렌(PP), 폴리스티렌(PS)으로 제조됩니다. 이들 고분자는 단위체 구조와 결정화도가 달라 밀도(PP 약 $0.90\\,\\text{g/cm}^3$, "
-            "HDPE 약 $0.95\\,\\text{g/cm}^3$, PS 약 $1.05\\,\\text{g/cm}^3$)와 용융 온도가 서로 다릅니다. 선별 공정에서는 비중 분리(물 부유 선별)나 근적외선(NIR) 분광 분석으로 재질을 분류하는데, "
+            "생활 용기는 주로 고밀도 폴리에틸렌(HDPE), 폴리프로필렌(PP), 폴리스티렌(PS)으로 제조됩니다. 이들 고분자는 단위체 구조와 결정화도가 달라 밀도(PP 약 0.90 g/cm³, "
+            "HDPE 약 0.95 g/cm³, PS 약 1.05 g/cm³)와 용융 온도가 서로 다릅니다. 선별 공정에서는 비중 분리(물 부유 선별)나 근적외선(NIR) 분광 분석으로 재질을 분류하는데, "
             "표면의 유지분이나 복합 재질은 적외선 흡수 스펙트럼을 왜곡해 선별 오차를 유발합니다."
         ),
         "environment": (
@@ -310,7 +297,7 @@ ITEMS = {
         ],
         "disposal": "비닐 코팅 표지, 스프링, 테이프, 택배 송장, 스테이플러 심 등 이물질을 모두 제거한 뒤 물에 젖지 않도록 반듯하게 펴서 묶어 배출합니다.",
         "science": (
-            "종이는 식물 세포벽에서 추출한 셀룰로오스($(\\text{C}_6\\text{H}_{10}\\text{O}_5)_n$) 섬유가 수분 건조 과정에서 수산기($-\\text{OH}$) 간 수소 결합을 형성하며 얽힌 망상 구조입니다. "
+            "종이는 식물 세포벽에서 추출한 셀룰로오스((C<sub>6</sub>H<sub>10</sub>O<sub>5</sub>)<sub>n</sub>) 섬유가 수분 건조 과정에서 수산기(-OH) 간 수소 결합을 형성하며 얽힌 망상 구조입니다. "
             "제지 공장의 해리(Pulping) 공정에서는 폐지를 물에 풀어 수소 결합을 일시적으로 끊어 섬유를 분산시킨 뒤, 부유 선별(탈묵)과 스크린 여과를 거쳐 재생 펄프를 만듭니다. "
             "그러나 폴리프로필렌 테이프나 감열지(영수증)의 화학 코팅제는 펄프 슬러리 내에서 점착물(Stickies)을 형성해 초지기 롤러를 오염시킵니다."
         ),
@@ -347,12 +334,12 @@ ITEMS = {
         "keywords": ["유리병", "유리", "유리 용기", "잼 병", "음료 유리", "소주병", "맥주병"],
         "disposal": "내용물을 비우고 물로 헹군 뒤 금속·플라스틱 뚜껑을 제거하여 색상별(투명·갈색·녹색) 구분 기준에 맞게 유리병 수거함에 배출합니다.",
         "science": (
-            "포장용 유리는 이산화규소($\\text{SiO}_2$)를 주성분으로 탄산나트륨($\\text{Na}_2\\text{CO}_3$)과 탄산칼슘($\\text{CaCO}_3$)을 혼합해 $1,500^\\circ\\text{C}$ 이상에서 용융시킨 비결정질 규산염 고체(소다석회유리)입니다. "
+            "포장용 유리는 이산화규소(SiO<sub>2</sub>)를 주성분으로 탄산나트륨(Na<sub>2</sub>CO<sub>3</sub>)과 탄산칼슘(CaCO<sub>3</sub>)을 혼합해 1,500°C 이상에서 용융시킨 비결정질 규산염 고체(소다석회유리)입니다. "
             "유리는 화학적 결합 구조가 안정적이어서 파유리(Cullet) 형태로 분쇄해 재용융해도 물성 열화 없이 무한 반복 재활용이 가능합니다. "
             "특히 파유리를 원료에 혼합하면 규사 원료를 처음 녹일 때보다 용융 온도를 낮출 수 있어 용해로 연료 소비가 줄어듭니다."
         ),
         "environment": (
-            "파유리 사용 비율을 10% 높일 때마다 유리 용해로의 에너지 소비는 약 2~3% 감소하고, 탄산염 원료의 열분해 과정에서 발생하는 공정 $\\text{CO}_2$ 배출량도 줄어듭니다. "
+            "파유리 사용 비율을 10% 높일 때마다 유리 용해로의 에너지 소비는 약 2~3% 감소하고, 탄산염 원료의 열분해 과정에서 발생하는 공정 CO<sub>2</sub> 배출량도 줄어듭니다. "
             "또한 규사·석회석 채굴로 인한 지형 훼손을 줄이며, 빈용기보증금 대상 병은 세척 후 재사용(Reuse)되어 재활용보다 훨씬 높은 에너지 절감 효과를 냅니다."
         ),
         "personal": (
@@ -385,7 +372,7 @@ ITEMS = {
         "keywords": ["건전지", "배터리", "전지", "보조배터리", "리튬", "충전지"],
         "disposal": "절대 일반 쓰레기나 재활용품과 섞지 말고, 단자 부위를 절연 테이프로 감싼 뒤 아파트·주민센터·학교의 폐건전지 전용 수거함에 배출합니다.",
         "science": (
-            "망간·알칼리 건전지는 아연($\\text{Zn}$)의 산화와 이산화망간($\\text{MnO}_2$)의 환원 반응을, 리튬이온 배터리는 양극(리튬 전이금속 산화물)과 음극(흑연) 사이의 리튬 이온($\\text{Li}^+$) 이동을 이용해 전기를 생성합니다. "
+            "망간·알칼리 건전지는 아연(Zn)의 산화와 이산화망간(MnO<sub>2</sub>)의 환원 반응을, 리튬이온 배터리는 양극(리튬 전이금속 산화물)과 음극(흑연) 사이의 리튬 이온(Li<sup>+</sup>) 이동을 이용해 전기를 생성합니다. "
             "전용 재활용 시설에서는 파쇄·열처리 및 습식 제련(산 침출·용매 추출)을 통해 아연, 망간, 리튬, 코발트, 니켈 같은 유가금속을 고순도로 회수합니다."
         ),
         "environment": (
@@ -403,7 +390,7 @@ ITEMS = {
         "keywords": ["폐가전", "전자제품", "컴퓨터", "휴대폰", "스마트폰", "가전", "노트북", "이어폰", "충전기"],
         "disposal": "대형 폐가전은 '폐가전제품 무상방문수거 서비스(1599-0903)'를 이용하고, 소형 가전은 지자체 소형가전 전용 수거함이나 대형마트·주민센터 수거함에 배출합니다.",
         "science": (
-            "전자제품 인쇄회로기판(PCB)과 부품에는 구리($\\text{Cu}$), 금($\\text{Au}$), 은($\\text{Ag}$), 팔라듐($\\text{Pd}$), 희토류 원소와 함께 엔지니어링 플라스틱, 납·브롬계 난연제 등이 복합적으로 집적되어 있습니다. "
+            "전자제품 인쇄회로기판(PCB)과 부품에는 구리(Cu), 금(Au), 은(Ag), 팔라듐(Pd), 희토류 원소와 함께 엔지니어링 플라스틱, 납·브롬계 난연제 등이 복합적으로 집적되어 있습니다. "
             "전문 리사이클링 센터에서는 냉매(프레온·HFC계)를 먼저 진공 회수한 뒤 자동 파쇄, 비중·자력·정전 선별 및 제련 공정을 거쳐 금속과 고분자를 분리 추출합니다."
         ),
         "environment": (
@@ -444,10 +431,10 @@ PRACTICES = {
         ],
         "science": (
             "전자제품은 주 전원이 꺼져 있어도 내부 전원공급장치(SMPS)의 변압기 코일 여자 전류, 리모컨 적외선 수신 센서, 네트워크 대기 모듈 유지를 위해 미세 전류를 지속적으로 소비합니다. "
-            "소비전력 $P(\\text{W})$인 기기가 시간 $t(\\text{h})$ 동안 소비하는 전력량은 $E = P \\times t\\,(\\text{Wh})$이며, 물리적 스위치가 달린 멀티탭으로 회로를 개방(Open Circuit)하면 전류 흐름을 차단해 대기전력을 $0\\,\\text{W}$로 만들 수 있습니다."
+            "소비전력 P(W)인 기기가 시간 t(h) 동안 소비하는 전력량은 E = P × t (Wh)이며, 물리적 스위치가 달린 멀티탭으로 회로를 개방(Open Circuit)하면 전류 흐름을 차단해 대기전력을 0 W로 만들 수 있습니다."
         ),
         "environment": (
-            "한국전력거래소 전력통계 기준 국내 발전믹스에서 석탄·LNG 등 화석연료 발전이 차지하는 비중을 고려할 때, 전력 소비량 $1\\,\\text{kWh}$ 감축은 약 $0.45\\sim 0.47\\,\\text{kgCO}_2\\text{eq}$의 온실가스 배출 저감으로 직결됩니다. "
+            "한국전력거래소 전력통계 기준 국내 발전믹스에서 석탄·LNG 등 화석연료 발전이 차지하는 비중을 고려할 때, 전력 소비량 1 kWh 감축은 약 0.45~0.47 kgCO<sub>2</sub>eq의 온실가스 배출 저감으로 직결됩니다. "
             "특히 전력 수요가 급증하는 피크 시간대의 불필요한 부하 감소는 첨두부하 발전기(고탄소 발전원) 가동을 억제합니다."
         ),
         "personal": (
@@ -462,18 +449,18 @@ PRACTICES = {
             "에어컨", "난방", "냉방", "보일러", "온도", "히터", "선풍기", "커튼", "단열", "내복"
         ],
         "science": (
-            "열역학 제2법칙에 따라 열은 고온에서 저온으로 이동하며, 단위 시간당 전도·대류에 의한 열손실률은 실내외 온도 차($\\Delta T$)에 비례합니다($\\dot{Q} \\propto \\Delta T$). "
-            "냉난방기(히트펌프)의 성능계수(COP) 역시 실내외 온도 차가 커질수록 급격히 저하되므로, 설정 온도를 $1^\\circ\\text{C}$ 완화할 때마다 압축기 일률과 연료 연소량이 비선형적으로 감소합니다."
+            "열역학 제2법칙에 따라 열은 고온에서 저온으로 이동하며, 단위 시간당 전도·대류에 의한 열손실률은 실내외 온도 차(ΔT)에 비례합니다(Q̇ ∝ ΔT). "
+            "냉난방기(히트펌프)의 성능계수(COP) 역시 실내외 온도 차가 커질수록 급격히 저하되므로, 설정 온도를 1°C 완화할 때마다 압축기 일률과 연료 연소량이 비선형적으로 감소합니다."
         ),
         "environment": (
             "건물 부문은 국가 전체 온실가스 배출량의 약 20~25%를 차지하며 그중 냉난방 비중이 가장 큽니다. "
-            "여름철 실내 냉방 온도를 $26^\\circ\\text{C}$ 이상, 겨울철 난방 온도를 $20^\\circ\\text{C}$ 이하로 유지하면 발전소 석탄·가스 연소량과 도시가스($\\text{CH}_4$) 직접 연소에 따른 이산화탄소 및 질소산화물($\\text{NO}_x$) 배출을 크게 줄일 수 있습니다."
+            "여름철 실내 냉방 온도를 26°C 이상, 겨울철 난방 온도를 20°C 이하로 유지하면 발전소 석탄·가스 연소량과 도시가스(CH<sub>4</sub>) 직접 연소에 따른 이산화탄소 및 질소산화물(NO<sub>x</sub>) 배출을 크게 줄일 수 있습니다."
         ),
         "personal": (
-            "냉난방 설정 온도를 $1^\\circ\\text{C}$ 조정하면 냉난방 에너지를 약 7% 절약하여 계절별 냉난방비 부담을 낮출 수 있습니다. "
-            "생리학적으로도 실내외 온도 차이를 $5^\\circ\\text{C}$ 이내로 유지하면 자율신경계 불균형으로 인한 냉방병·두통·호흡기 점막 건조증을 예방해 학습 집중력을 유지하는 데 유리합니다."
+            "냉난방 설정 온도를 1°C 조정하면 냉난방 에너지를 약 7% 절약하여 계절별 냉난방비 부담을 낮출 수 있습니다. "
+            "생리학적으로도 실내외 온도 차이를 5°C 이내로 유지하면 자율신경계 불균형으로 인한 냉방병·두통·호흡기 점막 건조증을 예방해 학습 집중력을 유지하는 데 유리합니다."
         ),
-        "tip": "에어컨 가동 초기에는 강풍으로 빠르게 온도를 낮춘 뒤 적정 온도를 유지하고, 선풍기·서큘레이터로 실내 대류를 순환시키면 체감 온도를 약 $2^\\circ\\text{C}$ 더 낮출 수 있습니다.",
+        "tip": "에어컨 가동 초기에는 강풍으로 빠르게 온도를 낮춘 뒤 적정 온도를 유지하고, 선풍기·서큘레이터로 실내 대류를 순환시키면 체감 온도를 약 2°C 더 낮출 수 있습니다.",
     },
     "절수 습관 및 온수 사용 시간 단축": {
         "category": "자원 절약·재사용",
@@ -481,8 +468,8 @@ PRACTICES = {
             "샤워", "물 절약", "수도", "양치", "양치컵", "물 틀어놓", "절수", "빨래 모아서", "설거지통"
         ],
         "science": (
-            "상수도는 취수·응집·침전·여과·소독 정수 공정과 가압 펌프 송수를 거쳐 공급되며, 사용 후 하수처리장의 미생물 호기성 분해 공정을 거치므로 물 $1\\,\\text{m}^3$당 상당한 전기에너지가 투입됩니다. "
-            "특히 온수를 사용할 때는 물의 큰 비열($c = 4.184\\,\\text{kJ/kg}\\cdot\\text{K}$) 때문에 수온을 $25^\\circ\\text{C}$ 상승시키는 데 막대한 열에너지($Q = mc\\Delta T$)가 추가로 소모됩니다."
+            "상수도는 취수·응집·침전·여과·소독 정수 공정과 가압 펌프 송수를 거쳐 공급되며, 사용 후 하수처리장의 미생물 호기성 분해 공정을 거치므로 물 1 m³당 상당한 전기에너지가 투입됩니다. "
+            "특히 온수를 사용할 때는 물의 큰 비열(c = 4.184 kJ/kg·K) 때문에 수온을 25°C 상승시키는 데 막대한 열에너지(Q = mcΔT)가 추가로 소모됩니다."
         ),
         "environment": (
             "샤워 시간을 5분 단축하면 약 40~60L의 상수도와 온수 가열용 도시가스·전력을 동시에 절약할 수 있습니다. "
@@ -500,7 +487,7 @@ PRACTICES = {
         ],
         "science": (
             "식량 생산은 질소·인 비료 제조(하버-보슈 공정), 관개 농업, 냉장 유통(콜드체인)을 거치는 에너지 집약적 시스템입니다. "
-            "버려진 음식물 쓰레기가 매립지 등 혐기성 조건에서 메탄생성균에 의해 분해되면 이산화탄소보다 지구온난화지수(GWP, 100년 기준)가 약 28배 높은 메탄($\\text{CH}_4$)이 발생합니다."
+            "버려진 음식물 쓰레기가 매립지 등 혐기성 조건에서 메탄생성균에 의해 분해되면 이산화탄소보다 지구온난화지수(GWP, 100년 기준)가 약 28배 높은 메탄(CH<sub>4</sub>)이 발생합니다."
         ),
         "environment": (
             "유엔환경계획(UNEP)과 IPCC 보고서에 따르면 전 세계 온실가스 배출량의 약 8~10%가 생산되었으나 소비되지 못하고 폐기되는 식량에서 기인합니다. "
@@ -555,11 +542,11 @@ PRACTICES = {
             "따릉이", "걸어가", "걸어다니", "전기자전거"
         ],
         "science": (
-            "내연기관 승용차는 가솔린(옥탄 $\\text{C}_8\\text{H}_{18}$ 등 탄화수소 혼합물)의 연소 반응($2\\text{C}_8\\text{H}_{18} + 25\\text{O}_2 \\rightarrow 16\\text{CO}_2 + 18\\text{H}_2\\text{O}$)을 통해 화학에너지를 운동에너지로 전환하며, "
-            "열역학적 카르노 효율 한계로 인해 연료 에너지의 약 70~75%가 폐열로 손실됩니다. 휘발유 1L 연소 시 약 $2.1\\sim 2.3\\,\\text{kg}$의 $\\text{CO}_2$가 배출되는 반면, 도보와 자전거는 화석연료 연소가 전혀 없는 무배출(Zero-Emission) 이동 수단입니다."
+            "내연기관 승용차는 가솔린(옥탄 C<sub>8</sub>H<sub>18</sub> 등 탄화수소 혼합물)의 연소 반응(2C<sub>8</sub>H<sub>18</sub> + 25O<sub>2</sub> → 16CO<sub>2</sub> + 18H<sub>2</sub>O)을 통해 화학에너지를 운동에너지로 전환하며, "
+            "열역학적 카르노 효율 한계로 인해 연료 에너지의 약 70~75%가 폐열로 손실됩니다. 휘발유 1L 연소 시 약 2.1~2.3 kg의 CO<sub>2</sub>가 배출되는 반면, 도보와 자전거는 화석연료 연소가 전혀 없는 무배출(Zero-Emission) 이동 수단입니다."
         ),
         "environment": (
-            "수송 부문은 국가 온실가스 배출의 약 14%를 차지하며, 특히 $2\\sim 3\\,\\text{km}$ 이내 단거리 주행에서는 엔진 예열 전 불완전 연소 비율이 높아 일산화탄소($\\text{CO}$), 탄화수소($\\text{HC}$), 질소산화물($\\text{NO}_x$) 및 타이어 마모 미세먼지($\\text{PM}_{2.5}$)가 집중 배출됩니다. "
+            "수송 부문은 국가 온실가스 배출의 약 14%를 차지하며, 특히 2~3 km 이내 단거리 주행에서는 엔진 예열 전 불완전 연소 비율이 높아 일산화탄소(CO), 탄화수소(HC), 질소산화물(NO<sub>x</sub>) 및 타이어 마모 미세먼지(PM<sub>2.5</sub>)가 집중 배출됩니다. "
             "단거리 차량 이용을 도보·자전거·대중교통으로 전환하면 도심 열섬 현상과 광화학 스모그 생성을 크게 억제합니다."
         ),
         "personal": (
@@ -577,7 +564,7 @@ PRACTICES = {
             "양면 인쇄 및 2쪽 모아찍기는 동일한 정보 전달량 대비 필요한 셀룰로오스 섬유의 질량을 50~75%까지 직접 감축합니다."
         ),
         "environment": (
-            "복사용지 1박스(2,500매, 약 12.5kg) 생산에는 약 $30\\,\\text{kgCO}_2\\text{eq}$ 이상의 온실가스와 수백 리터의 공업용수가 투입됩니다. "
+            "복사용지 1박스(2,500매, 약 12.5kg) 생산에는 약 30 kgCO<sub>2</sub>eq 이상의 온실가스와 수백 리터의 공업용수가 투입됩니다. "
             "출력량 자체를 줄이는 원천 감량(Reduce)은 재활용(Recycle)보다 에너지 소비와 폐수 발생을 훨씬 효과적으로 낮추며 원시림의 탄소 고정 능력을 보전합니다."
         ),
         "personal": (
@@ -592,11 +579,11 @@ PRACTICES = {
         ],
         "science": (
             "생태계 에너지 피라미드에서 영양 단계가 한 단계 올라갈 때마다 에너지의 약 10%만 전달되고 나머지 90%는 호흡열 등으로 소실됩니다. "
-            "따라서 곡물을 사료로 재배해 반추동물(소 등)을 사육하는 축산업은 동일 단백질 생산 대비 토지·수자원 투입량이 매우 크며, 반추위 내 장내 발효 과정에서 다량의 메탄($\\text{CH}_4$)이 방출됩니다. "
+            "따라서 곡물을 사료로 재배해 반추동물(소 등)을 사육하는 축산업은 동일 단백질 생산 대비 토지·수자원 투입량이 매우 크며, 반추위 내 장내 발효 과정에서 다량의 메탄(CH<sub>4</sub>)이 방출됩니다. "
             "또한 로컬푸드는 수송 거리와 냉장 보관 기간을 줄여 푸드 마일리지(Food Mileage) 기반 수송 연료 연소를 최소화합니다."
         ),
         "environment": (
-            "전과정평가 기준 소고기 $1\\,\\text{kg}$ 생산에는 약 $60\\,\\text{kgCO}_2\\text{eq}$ 이상이 배출되는 반면, 두부·콩류·채소류는 $2\\sim 3\\,\\text{kgCO}_2\\text{eq}$ 수준에 불과합니다. "
+            "전과정평가 기준 소고기 1 kg 생산에는 약 60 kgCO<sub>2</sub>eq 이상이 배출되는 반면, 두부·콩류·채소류는 2~3 kgCO<sub>2</sub>eq 수준에 불과합니다. "
             "주 1~2회 저탄소 식단 실천과 지역 제철 농산물 소비는 축산 분뇨로 인한 수질 부영양화와 장거리 해상·항공 물류 탄소 배출을 크게 저감합니다."
         ),
         "personal": (
@@ -793,11 +780,14 @@ def render_analysis_report(title: str, data: dict, item_mode: bool = False):
         st.info(f"**실천 최적화 가이드:** {data['tip']}")
 
 
+# -----------------------------
+# 상단 타이틀 (일상 생활 속 환경 보호)
+# -----------------------------
 st.markdown(
     """
     <div class="lab-header">
-        <div class="lab-kicker">ECO-SCIENCE MECHANISM ARCHIVE</div>
-        <h1 class="lab-title">일상 행동의 과학적 메커니즘</h1>
+        <div class="lab-kicker">🌿 ECO-SCIENCE MECHANISM ARCHIVE</div>
+        <h1 class="lab-title">일상 생활 속 환경 보호</h1>
         <p class="lab-subtitle">
             분리배출과 에너지·자원 절약이 지구 환경 시스템과 개인의 삶에 미치는 영향을
             과학적 원리로 정밀 분석합니다.
@@ -810,7 +800,7 @@ st.markdown(
 MENU_OPTIONS = [
     "1. 유형별 환경보호 활동 탐구",
     "2. 나의 실천 활동 과학적 분석",
-    "3. 실천 소감 및 탐구 기록 게시판",
+    "3. 실천 소감 및 설문 참여 (구글폼)",
 ]
 
 if "active_section" not in st.session_state:
@@ -968,69 +958,31 @@ elif active == MENU_OPTIONS[1]:
             )
 
 elif active == MENU_OPTIONS[2]:
-    st.markdown("### 3. 실천 소감 및 탐구 기록 게시판")
-    st.write(
-        "직접 실천한 환경보호 활동과 과학적 원리를 탐구하며 느낀 점을 기록해 주세요. 작성된 게시글은 전체 이용자가 열람할 수 있습니다."
+    st.markdown("### 3. 실천 소감 및 설문 참여")
+    st.markdown(
+        f"""
+        <div class="form-link-card">
+            <div class="form-link-title">📝 일상 생활 속 환경 보호 실천 소감 제출하기</div>
+            <p class="form-link-desc">
+                직접 실천한 환경보호 활동과 과학적 원리를 탐구하며 느낀 점을 아래 구글폼에 작성해 제출해 주세요.<br>
+                ✨ <b>설문에 응해주신 분들 중 추첨을 통해 소정의 상품을 드립니다!</b> ✨<br>
+                아래 버튼을 누르면 설문 작성 페이지로 바로 이동합니다.
+            </p>
+            <a href="{GOOGLE_FORM_URL}" target="_blank" rel="noopener noreferrer" class="pastel-cta-btn">
+                🔗 구글폼 설문 작성하러 가기
+            </a>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 
-    with st.form("reflection_board_form", clear_on_submit=True):
-        c1, c2 = st.columns(2)
-        with c1:
-            student_id = st.text_input("학번", placeholder="예: 20418")
-        with c2:
-            student_name = st.text_input("이름", placeholder="예: 이서연")
-        reflection_text = st.text_area(
-            "환경보호 활동 소감",
-            placeholder="실천한 환경보호 활동과 그 과정에 담긴 과학적 원리를 통해 새롭게 알게 된 점을 작성하세요.",
-            height=140,
-        )
-        post_btn = st.form_submit_button("게시하기", type="primary", use_container_width=True)
-
-    if post_btn:
-        if not student_id.strip() or not student_name.strip() or not reflection_text.strip():
-            st.warning("학번, 이름, 환경보호 활동 소감을 모두 입력해야 게시할 수 있습니다.")
-        else:
-            ok, msg = save_board_post(
-                student_id.strip(),
-                student_name.strip(),
-                reflection_text.strip(),
-            )
-            if ok:
-                st.success(msg)
-            else:
-                st.error(msg)
-
-    st.divider()
-    st.markdown("#### 전체 탐구·실천 소감 아카이브")
-    posts, is_persistent = load_board_posts()
-
-    if not is_persistent:
-        st.caption(
-            "※ 현재 외부 데이터베이스(Supabase) 환경변수가 연결되지 않아 세션 임시 저장소로 동작합니다. "
-            "Streamlit Secrets에 SUPABASE_URL과 SUPABASE_KEY를 등록하면 서버 DB에 영구 저장됩니다."
-        )
-
-    if not posts:
-        st.info("아직 등록된 게시글이 없습니다. 첫 번째 탐구 소감을 남겨 보세요.")
-    else:
-        st.caption(f"총 {len(posts)}개의 게시글이 공유되어 있습니다.")
-        for post in posts:
-            sid = post.get("student_id", "")
-            sname = post.get("student_name", "")
-            body = post.get("reflection", "")
-            created = str(post.get("created_at", ""))[:16].replace("T", " ")
-            st.markdown(
-                f"""
-                <div class="post-card">
-                    <div class="post-meta">
-                        {sid} {sname}
-                        <span class="post-time">{created}</span>
-                    </div>
-                    <div class="post-body">{body}</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+    st.link_button(
+        "새 탭에서 구글폼 열기",
+        GOOGLE_FORM_URL,
+        type="primary",
+        use_container_width=True,
+    )
+    st.caption(f"직접 접속 링크: {GOOGLE_FORM_URL}")
 
 st.markdown("<div style='height: 1.5rem;'></div>", unsafe_allow_html=True)
 with st.expander("📚 참고 자료 및 데이터 출처 안내"):
